@@ -2,6 +2,7 @@ package com.campusoa.auth.controller;
 
 import com.campusoa.auth.dto.LoginRequest;
 import com.campusoa.auth.dto.LoginResponse;
+import com.campusoa.auth.dto.RegisterRequest;
 import com.campusoa.auth.dto.UserProfile;
 import com.campusoa.auth.service.AuthService;
 import com.campusoa.common.ApiResponse;
@@ -31,6 +32,12 @@ public class AuthController {
     @PostMapping("/login")
     public ApiResponse<LoginResponse> login(@Valid @RequestBody LoginRequest request) {
         return ApiResponse.ok("登录成功", authService.login(request.username(), request.password()));
+    }
+
+    @PostMapping("/register")
+    public ApiResponse<Map<String, Long>> register(@Valid @RequestBody RegisterRequest request) {
+        Long id = authService.registerStudent(request);
+        return ApiResponse.ok("注册成功", Map.of("id", id));
     }
 
     @GetMapping("/profile")

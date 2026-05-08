@@ -37,7 +37,8 @@ public class SecurityConfig {
     public WebSecurityCustomizer webSecurityCustomizer() {
         return web -> web.ignoring()
                 .requestMatchers(new AntPathRequestMatcher("/api/health"))
-                .requestMatchers(new AntPathRequestMatcher("/api/auth/login"));
+                .requestMatchers(new AntPathRequestMatcher("/api/auth/login"))
+                .requestMatchers(new AntPathRequestMatcher("/api/auth/register"));
     }
 
     @Bean
@@ -57,6 +58,7 @@ public class SecurityConfig {
                         .requestMatchers(new AntPathRequestMatcher("/api/**", HttpMethod.OPTIONS.name())).permitAll()
                         .requestMatchers(new AntPathRequestMatcher("/api/health", HttpMethod.GET.name())).permitAll()
                         .requestMatchers(new AntPathRequestMatcher("/api/auth/login")).permitAll()
+                        .requestMatchers(new AntPathRequestMatcher("/api/auth/register")).permitAll()
                         .anyRequest().authenticated()
                 )
                 .addFilterBefore(tokenAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);

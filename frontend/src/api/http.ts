@@ -25,6 +25,15 @@ export interface LoginResponse {
   permissions: string[];
 }
 
+export interface RegisterPayload {
+  username: string;
+  password: string;
+  confirmPassword: string;
+  realName: string;
+  phone?: string;
+  email?: string;
+}
+
 export interface ProfileResponse {
   profile: UserProfile;
   menus: string[];
@@ -268,6 +277,13 @@ export function login(username: string, password: string) {
   return request<LoginResponse>('/auth/login', {
     method: 'POST',
     body: JSON.stringify({ username, password })
+  });
+}
+
+export function register(payload: RegisterPayload) {
+  return request<{ id: number }>('/auth/register', {
+    method: 'POST',
+    body: JSON.stringify(payload)
   });
 }
 

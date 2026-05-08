@@ -1,69 +1,125 @@
 <template>
   <div class="login-page">
-    <div class="login-card">
-      <div class="intro">
-        <h1>校园 OA 系统</h1>
-        <p>请输入测试账号登录，验证基础用户体系和角色菜单控制。</p>
-      </div>
-      <form class="login-form" @submit.prevent="submit">
-        <label>
-          <span>用户名</span>
-          <input v-model.trim="form.username" autocomplete="username" />
-        </label>
-        <label>
-          <span>密码</span>
-          <input v-model.trim="form.password" type="password" autocomplete="current-password" />
-        </label>
-        <button type="submit" :disabled="loading">
-          {{ loading ? '登录中...' : '登录' }}
-        </button>
-        <p v-if="errorMessage" class="error-text">{{ errorMessage }}</p>
-      </form>
-      <div class="account-list">
-        <h2>测试账号</h2>
-        <ul>
-          <li v-for="account in accounts" :key="account.username">
-            <strong>{{ account.username }}</strong>
-            <span>{{ account.password }}</span>
-            <em>{{ account.role }}</em>
-          </li>
-        </ul>
-      </div>
-    </div>
+    <main class="auth-card" aria-label="账号访问">
+      <header class="login-header">
+        <span class="brand-mark">OA</span>
+        <div>
+          <h1>校园 OA 系统</h1>
+          <p>统一办公入口</p>
+        </div>
+      </header>
+
+      <el-tabs v-model="activeMode" stretch @tab-change="clearFeedback">
+        <el-tab-pane label="登录" name="login">
+          <el-form class="auth-form" label-position="top" @submit.prevent>
+            <el-form-item label="用户名">
+              <el-input v-model.trim="loginForm.username" autocomplete="username" placeholder="请输入用户名" size="large" />
+            </el-form-item>
+            <el-form-item label="密码">
+              <el-input
+                v-model.trim="loginForm.password"
+                type="password"
+                autocomplete="current-password"
+                placeholder="请输入密码"
+                show-password
+                size="large"
+              />
+            </el-form-item>
+            <el-button class="auth-submit" type="primary" size="large" :loading="loading" @click="submitLogin">
+              {{ loading ? '登录中...' : '登录系统' }}
+            </el-button>
+          </el-form>
+        </el-tab-pane>
+
+        <el-tab-pane label="注册" name="register">
+          <el-form class="auth-form" label-position="top" @submit.prevent>
+            <div class="register-grid">
+              <el-form-item label="用户名">
+                <el-input v-model.trim="registerForm.username" autocomplete="username" placeholder="4-32 位字母、数字或下划线" size="large" />
+              </el-form-item>
+              <el-form-item label="姓名">
+                <el-input v-model.trim="registerForm.realName" autocomplete="name" placeholder="请输入姓名" size="large" />
+              </el-form-item>
+              <el-form-item label="密码">
+                <el-input
+                  v-model.trim="registerForm.password"
+                  type="password"
+                  autocomplete="new-password"
+                  placeholder="至少 6 位"
+                  show-password
+                  size="large"
+                />
+              </el-form-item>
+              <el-form-item label="确认密码">
+                <el-input
+                  v-model.trim="registerForm.confirmPassword"
+                  type="password"
+                  autocomplete="new-password"
+                  placeholder="再次输入密码"
+                  show-password
+                  size="large"
+                />
+              </el-form-item>
+              <el-form-item label="手机号">
+                <el-input v-model.trim="registerForm.phone" autocomplete="tel" placeholder="选填" size="large" />
+              </el-form-item>
+              <el-form-item label="邮箱">
+                <el-input v-model.trim="registerForm.email" autocomplete="email" placeholder="选填" size="large" />
+              </el-form-item>
+            </div>
+            <el-button class="auth-submit" type="primary" size="large" :loading="registering" @click="submitRegister">
+              {{ registering ? '注册中...' : '注册学生账号' }}
+            </el-button>
+          </el-form>
+        </el-tab-pane>
+      </el-tabs>
+
+      <el-alert v-if="successMessage" class="feedback-alert" type="success" :title="successMessage" show-icon :closable="false" />
+      <el-alert v-if="errorMessage" class="feedback-alert" type="error" :title="errorMessage" show-icon :closable="false" />
+    </main>
   </div>
 </template>
 
 <script setup lang="ts">
 import { reactive, ref } from 'vue';
 import { useRouter } from 'vue-router';
-import { login } from '../api/http';
+import { login, register } from '../api/http';
 import { useAppStore } from '../stores/app';
 
 const router = useRouter();
 const appStore = useAppStore();
 
+const activeMode = ref<'login' | 'register'>('login');
 const loading = ref(false);
+const registering = ref(false);
 const errorMessage = ref('');
-const form = reactive({
-  username: 'admin',
-  password: '123456'
+const successMessage = ref('');
+
+const loginForm = reactive({
+  username: '',
+  password: ''
 });
 
-const accounts = [
-  { username: 'admin', password: '123456', role: '系统管理员' },
-  { username: 'student', password: '123456', role: '学生' },
-  { username: 'teacher', password: '123456', role: '教师' },
-  { username: 'adviser', password: '123456', role: '班主任' },
-  { username: 'research', password: '123456', role: '科技处' },
-  { username: 'office', password: '123456', role: '教务处' },
-  { username: 'reviewer', password: '123456', role: '评审专家' }
-];
+const registerForm = reactive({
+  username: '',
+  realName: '',
+  password: '',
+  confirmPassword: '',
+  phone: '',
+  email: ''
+});
 
-async function submit() {
+async function submitLogin() {
+  if (!loginForm.username || !loginForm.password) {
+    errorMessage.value = '请填写用户名和密码';
+    successMessage.value = '';
+    return;
+  }
+
   loading.value = true;
-  errorMessage.value = '';
+  clearFeedback();
   try {
-    const response = await login(form.username, form.password);
+    const response = await login(loginForm.username, loginForm.password);
     appStore.setAuth({
       token: response.data.token,
       currentUserName: response.data.profile.realName,
@@ -78,6 +134,55 @@ async function submit() {
     loading.value = false;
   }
 }
+
+async function submitRegister() {
+  if (!registerForm.username || !registerForm.realName || !registerForm.password || !registerForm.confirmPassword) {
+    errorMessage.value = '请填写用户名、姓名和密码';
+    successMessage.value = '';
+    return;
+  }
+  if (registerForm.password !== registerForm.confirmPassword) {
+    errorMessage.value = '两次输入的密码不一致';
+    successMessage.value = '';
+    return;
+  }
+
+  registering.value = true;
+  clearFeedback();
+  try {
+    await register({
+      username: registerForm.username,
+      realName: registerForm.realName,
+      password: registerForm.password,
+      confirmPassword: registerForm.confirmPassword,
+      phone: registerForm.phone || undefined,
+      email: registerForm.email || undefined
+    });
+    successMessage.value = '注册成功，请使用新账号登录';
+    activeMode.value = 'login';
+    loginForm.username = registerForm.username;
+    loginForm.password = '';
+    resetRegisterForm();
+  } catch (error) {
+    errorMessage.value = error instanceof Error ? error.message : '注册失败';
+  } finally {
+    registering.value = false;
+  }
+}
+
+function clearFeedback() {
+  errorMessage.value = '';
+  successMessage.value = '';
+}
+
+function resetRegisterForm() {
+  registerForm.username = '';
+  registerForm.realName = '';
+  registerForm.password = '';
+  registerForm.confirmPassword = '';
+  registerForm.phone = '';
+  registerForm.email = '';
+}
 </script>
 
 <style scoped>
@@ -85,94 +190,119 @@ async function submit() {
   min-height: 100vh;
   display: grid;
   place-items: center;
-  background: radial-gradient(circle at top, #eaf4ff 0%, #f8fbfd 45%, #eef4f1 100%);
-  padding: 24px;
+  padding: 32px;
+  background:
+    linear-gradient(135deg, rgba(15, 76, 129, 0.08), rgba(191, 139, 0, 0.08)),
+    #f5f8fc;
 }
 
-.login-card {
-  width: min(960px, 100%);
-  display: grid;
-  grid-template-columns: 1.1fr 0.9fr;
-  gap: 24px;
-  padding: 28px;
-  border-radius: 24px;
-  background: rgba(255, 255, 255, 0.94);
-  box-shadow: 0 20px 60px rgba(15, 23, 42, 0.12);
-}
-
-.intro h1,
-.account-list h2 {
-  margin: 0 0 12px;
-}
-
-.intro p {
-  margin: 0;
-  color: #52606d;
-  line-height: 1.7;
-}
-
-.login-form {
+.auth-card {
+  width: min(520px, 100%);
   display: flex;
   flex-direction: column;
+  gap: 22px;
+  padding: 34px 38px;
+  border: 1px solid rgba(216, 226, 236, 0.9);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 20px 48px rgba(15, 23, 42, 0.12);
+}
+
+.login-header {
+  display: flex;
+  align-items: center;
+  justify-content: center;
   gap: 14px;
+  text-align: left;
 }
 
-.login-form label {
+.brand-mark {
+  width: 52px;
+  height: 52px;
+  display: inline-grid;
+  place-items: center;
+  border-radius: 8px;
+  background: var(--app-primary);
+  color: #ffffff;
+  font-weight: 800;
+  font-size: 20px;
+}
+
+.login-header h1,
+.login-header p {
+  margin: 0;
+}
+
+.login-header h1 {
+  font-size: 26px;
+  line-height: 1.2;
+  color: var(--app-text);
+}
+
+.login-header p {
+  margin-top: 4px;
+  color: var(--app-text-secondary);
+}
+
+.auth-form {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  color: #102a43;
-  font-weight: 600;
+  gap: 2px;
 }
 
-.login-form input {
-  border: 1px solid #d9e2ec;
-  border-radius: 12px;
-  padding: 12px 14px;
-  font-size: 15px;
+.register-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0 14px;
 }
 
-.login-form button {
+.auth-submit {
+  width: 100%;
   margin-top: 8px;
-  border: none;
-  border-radius: 12px;
-  padding: 12px 16px;
-  background: #124e78;
-  color: #fff;
+}
+
+.feedback-alert {
+  margin-top: 4px;
+}
+
+:deep(.el-tabs__nav-wrap::after) {
+  height: 1px;
+}
+
+:deep(.el-tabs__item) {
   font-size: 15px;
-  cursor: pointer;
+  font-weight: 700;
 }
 
-.login-form button:disabled {
-  opacity: 0.7;
-  cursor: not-allowed;
+:deep(.el-input__wrapper) {
+  border-radius: 8px;
 }
 
-.error-text {
-  margin: 0;
-  color: #b42318;
+:deep(.el-button) {
+  border-radius: 8px;
 }
 
-.account-list ul {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-  display: grid;
-  gap: 10px;
+@media (max-width: 980px) {
+  .auth-card {
+    width: min(520px, 100%);
+  }
 }
 
-.account-list li {
-  display: grid;
-  grid-template-columns: 1fr auto auto;
-  gap: 12px;
-  padding: 12px 14px;
-  border-radius: 12px;
-  background: #f8fbfd;
-}
+@media (max-width: 640px) {
+  .login-page {
+    padding: 18px;
+  }
 
-.account-list span,
-.account-list em {
-  color: #52606d;
-  font-style: normal;
+  .auth-card {
+    padding: 26px;
+  }
+
+  .login-header {
+    justify-content: flex-start;
+  }
+
+  .register-grid {
+    grid-template-columns: 1fr;
+  }
 }
 </style>

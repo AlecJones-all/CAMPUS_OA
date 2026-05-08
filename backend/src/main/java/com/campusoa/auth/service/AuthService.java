@@ -1,11 +1,13 @@
 package com.campusoa.auth.service;
 
 import com.campusoa.auth.dto.LoginResponse;
+import com.campusoa.auth.dto.RegisterRequest;
 import com.campusoa.auth.dto.UserProfile;
 import com.campusoa.auth.exception.AuthException;
 import com.campusoa.security.AuthenticatedUser;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -42,6 +44,46 @@ public class AuthService {
                 menusFor(authenticatedUser),
                 permissionsFor(authenticatedUser)
         );
+    }
+
+    @Transactional
+    public Long registerStudent(RegisterRequest request) {
+        String username = normalize(request.username());
+        String password = normalize(request.password());
+        String confirmPassword = normalize(request.confirmPassword());
+        String realName = normalize(request.realName());
+        String phone = optionalNormalize(request.phone());
+        String email = optionalNormalize(request.email());
+
+        if (!username.matches("^[A-Za-z0-9_]{4,32}$")) {
+            throw new AuthException("用户名仅支持 4 到 32 位字母、数字或下划线");
+        }
+        if (!password.equals(confirmPassword)) {
+            throw new AuthException("两次输入的密码不一致");
+        }
+        if (findUserByUsername(username) != null) {
+            throw new AuthException("用户名已存在");
+        }
+
+        Long studentRoleId = findRoleIdByCode("STUDENT");
+        if (studentRoleId == null) {
+            throw new AuthException("学生角色未初始化，请联系管理员");
+        }
+
+        jdbcTemplate.update("""
+                        INSERT INTO sys_user (org_id, username, password_hash, real_name, user_type, phone, email, status)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                        """,
+                null, username, password, realName, "STUDENT", phone, email, 1
+        );
+        Long userId = queryLastInsertId();
+        jdbcTemplate.update("""
+                        INSERT INTO sys_user_role (user_id, role_id)
+                        VALUES (?, ?)
+                        """,
+                userId, studentRoleId
+        );
+        return userId;
     }
 
     public AuthenticatedUser findByToken(String token) {
@@ -124,6 +166,19 @@ public class AuthService {
         );
     }
 
+    private Long findRoleIdByCode(String roleCode) {
+        List<Long> roleIds = jdbcTemplate.query("""
+                        SELECT id
+                        FROM sys_role
+                        WHERE role_code = ?
+                          AND status = 1
+                        """,
+                (rs, rowNum) -> rs.getLong("id"),
+                roleCode
+        );
+        return roleIds.isEmpty() ? null : roleIds.get(0);
+    }
+
     private AuthenticatedUser toAuthenticatedUser(DbUser user, List<String> roles) {
         return new AuthenticatedUser(user.userId(), user.username(), user.realName(), user.userType(), roles);
     }
@@ -173,6 +228,23 @@ public class AuthService {
 
     private String placeholders(int size) {
         return String.join(", ", java.util.Collections.nCopies(size, "?"));
+    }
+
+    private Long queryLastInsertId() {
+        Number key = jdbcTemplate.queryForObject("SELECT LAST_INSERT_ID()", Number.class);
+        if (key == null) {
+            throw new AuthException("注册失败，未获取到用户编号");
+        }
+        return key.longValue();
+    }
+
+    private String normalize(String value) {
+        return value == null ? "" : value.trim();
+    }
+
+    private String optionalNormalize(String value) {
+        String normalized = normalize(value);
+        return normalized.isEmpty() ? null : normalized;
     }
 
     private List<String> buildMenus(List<String> roles) {
