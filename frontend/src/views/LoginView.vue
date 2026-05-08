@@ -11,7 +11,7 @@
 
       <el-tabs v-model="activeMode" stretch @tab-change="clearFeedback">
         <el-tab-pane label="登录" name="login">
-          <el-form class="auth-form" label-position="top" @submit.prevent>
+          <el-form class="auth-form" label-position="top" @submit.prevent="submitLogin">
             <el-form-item label="用户名">
               <el-input v-model.trim="loginForm.username" autocomplete="username" placeholder="请输入用户名" size="large" />
             </el-form-item>
@@ -25,14 +25,14 @@
                 size="large"
               />
             </el-form-item>
-            <el-button class="auth-submit" type="primary" size="large" :loading="loading" @click="submitLogin">
+            <el-button class="auth-submit" type="primary" size="large" native-type="submit" :loading="loading">
               {{ loading ? '登录中...' : '登录系统' }}
             </el-button>
           </el-form>
         </el-tab-pane>
 
         <el-tab-pane label="注册" name="register">
-          <el-form class="auth-form" label-position="top" @submit.prevent>
+          <el-form class="auth-form" label-position="top" @submit.prevent="submitRegister">
             <div class="register-grid">
               <el-form-item label="用户名">
                 <el-input v-model.trim="registerForm.username" autocomplete="username" placeholder="4-32 位字母、数字或下划线" size="large" />
@@ -67,7 +67,7 @@
                 <el-input v-model.trim="registerForm.email" autocomplete="email" placeholder="选填" size="large" />
               </el-form-item>
             </div>
-            <el-button class="auth-submit" type="primary" size="large" :loading="registering" @click="submitRegister">
+            <el-button class="auth-submit" type="primary" size="large" native-type="submit" :loading="registering">
               {{ registering ? '注册中...' : '注册学生账号' }}
             </el-button>
           </el-form>
@@ -110,6 +110,9 @@ const registerForm = reactive({
 });
 
 async function submitLogin() {
+  if (loading.value) {
+    return;
+  }
   if (!loginForm.username || !loginForm.password) {
     errorMessage.value = '请填写用户名和密码';
     successMessage.value = '';
@@ -136,6 +139,9 @@ async function submitLogin() {
 }
 
 async function submitRegister() {
+  if (registering.value) {
+    return;
+  }
   if (!registerForm.username || !registerForm.realName || !registerForm.password || !registerForm.confirmPassword) {
     errorMessage.value = '请填写用户名、姓名和密码';
     successMessage.value = '';
