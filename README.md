@@ -3,12 +3,9 @@
 修改bat后缀文件的mysql密码
 
 
-先初始化数据库
-mysql -u root -p
-输入密码
-CREATE DATABASE IF NOT EXISTS campus_oa DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-EXIT;
-
+先初始化数据库  
+mysql -u root -p -e "CREATE DATABASE IF NOT EXISTS campus_oa DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"  
+mysql -u root -p campus_oa < D:\campus_oa\database\mysql\001_init_schema.sql  
 
 下载前端依赖：
 npm.cmd install
