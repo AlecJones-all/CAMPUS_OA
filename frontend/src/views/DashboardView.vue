@@ -161,10 +161,10 @@ const quickEntries = computed(() => {
 });
 
 const businessDomains = [
-  { label: '学生事务', title: '请假 / 销假 / 实习 / 异常学生', description: '学生日常业务入口。' },
-  { label: '教学事务', title: '调课 / 课程标准 / 教材征订 / 教室借用', description: '教学管理入口。' },
-  { label: '科研事务', title: '课题申报', description: '科研管理入口。' },
-  { label: '后勤事务', title: '会议室 / 维修 / 办公用品 / 用章 / 车辆', description: '后勤保障入口。' }
+  { label: '学生事务', title: '请假 / 销假 / 实习 / 奖助 / 证明 / 离返校', description: '学生日常业务入口。' },
+  { label: '教学事务', title: '调课 / 停补课 / 课程标准 / 教材 / 考试 / 教室', description: '教学管理入口。' },
+  { label: '科研事务', title: '课题申报 / 中期 / 结题 / 成果 / 讲座', description: '科研管理入口。' },
+  { label: '后勤事务', title: '会议室 / 维修 / 办公用品 / 用章 / 车辆 / 公告', description: '后勤保障入口。' }
 ];
 
 async function loadDashboardData() {

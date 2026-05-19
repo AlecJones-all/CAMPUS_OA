@@ -1,24 +1,5 @@
 <template>
-  <div v-if="moduleUnavailable" class="app-page">
-    <PageHero
-      eyebrow="业务入口"
-      :title="moduleDef?.name ?? '业务入口'"
-      description="该业务暂未开放，不能查看业务列表。"
-    />
-
-    <SectionCard title="业务暂未开放" description="请选择当前开放的业务入口。">
-      <p class="muted-text">
-        该业务暂未开放，请返回工作台或业务入口。
-      </p>
-      <div class="app-actions">
-        <RouterLink :to="backTarget">
-          <el-button type="primary">返回业务入口</el-button>
-        </RouterLink>
-      </div>
-    </SectionCard>
-  </div>
-
-  <div v-else class="app-page">
+  <div class="app-page">
     <PageHero
       eyebrow="业务列表"
       :title="moduleDef?.name ?? '业务入口'"
@@ -79,7 +60,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
-import { canCreateBusinessModule, getBusinessModule, isBusinessModuleActive } from '../../business/modules';
+import { canCreateBusinessModule, getBusinessModule } from '../../business/modules';
 import { listBusinessRecords, type BusinessRecordSummary } from '../../api/http';
 import { useAppStore } from '../../stores/app';
 import EmptyStateBlock from '../../components/EmptyStateBlock.vue';
@@ -97,12 +78,6 @@ const statusFilter = ref('');
 
 const businessKey = computed(() => String(route.params.businessKey ?? ''));
 const moduleDef = computed(() => getBusinessModule(businessKey.value));
-const moduleUnavailable = computed(() => !isBusinessModuleActive(moduleDef.value));
-const backTarget = computed(() =>
-  moduleDef.value?.domain
-    ? { name: 'module-domain', params: { domain: moduleDef.value.domain } }
-    : { name: 'dashboard' }
-);
 const canCreate = computed(() => (moduleDef.value ? canCreateBusinessModule(moduleDef.value, appStore.roles) : false));
 
 const statusOptions = [
@@ -123,10 +98,6 @@ const stats = computed(() => [
 ]);
 
 async function loadRecords() {
-  if (moduleUnavailable.value) {
-    records.value = [];
-    return;
-  }
   loading.value = true;
   errorMessage.value = '';
   try {

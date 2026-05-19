@@ -11,33 +11,12 @@ export interface BusinessModuleDefinition {
   name: string
   domain: 'student-affairs' | 'academic' | 'research' | 'logistics'
   description: string
-  active: boolean
   createRoles: string[]
   visibleRoles: string[]
   fields: BusinessFieldDefinition[]
 }
 
-export const activeBusinessModuleKeys = [
-  'internship-materials',
-  'abnormal-students',
-  'research-projects',
-  'course-standards',
-  'leave-applications',
-  'leave-cancellations',
-  'schedule-adjustments',
-  'meeting-rooms',
-  'classroom-borrow-applications',
-  'dorm-repairs',
-  'asset-repairs',
-  'textbook-orders',
-  'office-supply-requests',
-  'stamp-requests',
-  'vehicle-requests'
-] as const
-
-const activeBusinessModuleKeySet = new Set<string>(activeBusinessModuleKeys)
-
-const businessModuleDefinitions: Array<Omit<BusinessModuleDefinition, 'active'>> = [
+export const businessModules: BusinessModuleDefinition[] = [
   {
     key: 'internship-materials',
     name: '实习材料',
@@ -949,23 +928,12 @@ const businessModuleDefinitions: Array<Omit<BusinessModuleDefinition, 'active'>>
   }
 ]
 
-export const businessModules: BusinessModuleDefinition[] = businessModuleDefinitions.map((module) => ({
-  ...module,
-  active: activeBusinessModuleKeySet.has(module.key)
-}))
-
-export const activeBusinessModules = businessModules.filter((module) => module.active)
-
-export function isBusinessModuleActive(module: BusinessModuleDefinition | undefined): module is BusinessModuleDefinition {
-  return Boolean(module?.active)
-}
-
 export function getBusinessModuleByKey(key: string): BusinessModuleDefinition | undefined {
   return businessModules.find((item) => item.key === key)
 }
 
 export function getModulesByDomain(domain: BusinessModuleDefinition['domain']) {
-  return activeBusinessModules.filter((item) => item.domain === domain)
+  return businessModules.filter((item) => item.domain === domain)
 }
 
 export function getBusinessModule(key: string): BusinessModuleDefinition | undefined {
@@ -973,13 +941,13 @@ export function getBusinessModule(key: string): BusinessModuleDefinition | undef
 }
 
 export function getBusinessModulesByDomain(domain: string): BusinessModuleDefinition[] {
-  return activeBusinessModules.filter((item) => item.domain === domain)
+  return businessModules.filter((item) => item.domain === domain)
 }
 
 export function canCreateBusinessModule(module: BusinessModuleDefinition, roles: string[]): boolean {
-  return module.active && roles.some((role) => module.createRoles.includes(role) || role === 'ADMIN')
+  return roles.some((role) => module.createRoles.includes(role) || role === 'ADMIN')
 }
 
 export function canViewBusinessModule(module: BusinessModuleDefinition, roles: string[]): boolean {
-  return module.active && roles.some((role) => module.visibleRoles.includes(role) || role === 'ADMIN')
+  return roles.some((role) => module.visibleRoles.includes(role) || role === 'ADMIN')
 }

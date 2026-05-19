@@ -1,24 +1,5 @@
 <template>
-  <div v-if="moduleUnavailable" class="app-page">
-    <PageHero
-      eyebrow="新建业务"
-      :title="moduleDef?.name ?? '新建业务'"
-      description="该业务暂未开放，不能继续新建申请。"
-    />
-
-    <SectionCard title="业务暂未开放" description="请选择当前开放的业务入口。">
-      <p class="muted-text">
-        该业务暂未开放，请返回工作台或业务入口。
-      </p>
-      <div class="app-actions">
-        <RouterLink :to="backTarget">
-          <el-button type="primary">返回业务入口</el-button>
-        </RouterLink>
-      </div>
-    </SectionCard>
-  </div>
-
-  <div v-else class="app-page">
+  <div class="app-page">
     <PageHero
       eyebrow="新建业务"
       :title="moduleDef?.name ?? '新建业务'"
@@ -119,7 +100,7 @@
 import { computed, reactive, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import type { BusinessFieldDefinition } from '../../business/modules';
-import { canCreateBusinessModule, getBusinessModule, isBusinessModuleActive } from '../../business/modules';
+import { canCreateBusinessModule, getBusinessModule } from '../../business/modules';
 import { createBusinessRecord, getBusinessFieldOptions, submitBusinessRecord } from '../../api/http';
 import { useAppStore } from '../../stores/app';
 import PageHero from '../../components/PageHero.vue';
@@ -137,12 +118,6 @@ const dynamicFieldOptions = reactive<Record<string, Array<{ label: string; value
 
 const businessKey = computed(() => String(route.params.businessKey ?? ''));
 const moduleDef = computed(() => getBusinessModule(businessKey.value));
-const moduleUnavailable = computed(() => !isBusinessModuleActive(moduleDef.value));
-const backTarget = computed(() =>
-  moduleDef.value?.domain
-    ? { name: 'module-domain', params: { domain: moduleDef.value.domain } }
-    : { name: 'dashboard' }
-);
 const canCreate = computed(() => (moduleDef.value ? canCreateBusinessModule(moduleDef.value, appStore.roles) : false));
 const allFields = computed(() => moduleDef.value?.fields ?? []);
 const primaryFields = computed(() => allFields.value.slice(0, 4));
@@ -266,10 +241,6 @@ async function saveAndSubmit() {
 }
 
 async function initializeForm() {
-  if (moduleUnavailable.value) {
-    errorMessage.value = '';
-    return;
-  }
   if (!canCreate.value) {
     errorMessage.value = '当前角色无权新建该业务';
     void router.replace({ name: 'business-list', params: { businessKey: businessKey.value } });
