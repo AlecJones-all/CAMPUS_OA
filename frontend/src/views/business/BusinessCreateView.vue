@@ -1,17 +1,32 @@
 <template>
-  <div class="app-page">
+  <div v-if="moduleUnavailable" class="app-page">
+    <PageHero
+      eyebrow="新建业务"
+      :title="moduleDef?.name ?? '新建业务'"
+      description="该业务暂未开放，不能继续新建申请。"
+    />
+
+    <SectionCard title="业务暂未开放" description="请选择当前开放的业务入口。">
+      <p class="muted-text">
+        该业务暂未开放，请返回工作台或业务入口。
+      </p>
+      <div class="app-actions">
+        <RouterLink :to="backTarget">
+          <el-button type="primary">返回业务入口</el-button>
+        </RouterLink>
+      </div>
+    </SectionCard>
+  </div>
+
+  <div v-else class="app-page">
     <PageHero
       eyebrow="新建业务"
       :title="moduleDef?.name ?? '新建业务'"
       :description="moduleDef?.description ?? '填写业务信息并提交审批。'"
-    >
-      <template #meta>
-        <SummaryStats :items="heroStats" />
-      </template>
-    </PageHero>
+    />
 
     <form class="app-page" @submit.prevent="saveDraft">
-      <SectionCard title="基础信息" description="按业务定义填写表单。">
+      <SectionCard title="基础信息" description="请填写申请所需信息。">
         <div class="page-form-grid">
           <label v-for="field in primaryFields" :key="field.key">
             <span>{{ field.label }}</span>
@@ -44,7 +59,7 @@
         </div>
       </SectionCard>
 
-      <SectionCard v-if="secondaryFields.length > 0" title="补充说明" description="填写更多业务字段。">
+      <SectionCard v-if="secondaryFields.length > 0" title="补充说明" description="请补充本次申请相关信息。">
         <div class="page-form-grid">
           <label
             v-for="field in secondaryFields"
@@ -78,9 +93,9 @@
         </div>
       </SectionCard>
 
-      <SectionCard title="附件说明" description="保存后可在详情页补充附件。">
+      <SectionCard title="附件材料" description="保存后可在详情页补充附件。">
         <div class="form-help">
-          业务保存后可进入详情页继续上传附件，附件将与当前申请关联。
+          保存或提交后，可进入详情页上传申请材料、证明文件和补充材料。
         </div>
       </SectionCard>
 
@@ -104,12 +119,11 @@
 import { computed, reactive, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import type { BusinessFieldDefinition } from '../../business/modules';
-import { canCreateBusinessModule, getBusinessModule } from '../../business/modules';
+import { canCreateBusinessModule, getBusinessModule, isBusinessModuleActive } from '../../business/modules';
 import { createBusinessRecord, getBusinessFieldOptions, submitBusinessRecord } from '../../api/http';
 import { useAppStore } from '../../stores/app';
 import PageHero from '../../components/PageHero.vue';
 import SectionCard from '../../components/SectionCard.vue';
-import SummaryStats from '../../components/SummaryStats.vue';
 
 const route = useRoute();
 const router = useRouter();
@@ -123,6 +137,12 @@ const dynamicFieldOptions = reactive<Record<string, Array<{ label: string; value
 
 const businessKey = computed(() => String(route.params.businessKey ?? ''));
 const moduleDef = computed(() => getBusinessModule(businessKey.value));
+const moduleUnavailable = computed(() => !isBusinessModuleActive(moduleDef.value));
+const backTarget = computed(() =>
+  moduleDef.value?.domain
+    ? { name: 'module-domain', params: { domain: moduleDef.value.domain } }
+    : { name: 'dashboard' }
+);
 const canCreate = computed(() => (moduleDef.value ? canCreateBusinessModule(moduleDef.value, appStore.roles) : false));
 const allFields = computed(() => moduleDef.value?.fields ?? []);
 const primaryFields = computed(() => allFields.value.slice(0, 4));
@@ -140,12 +160,6 @@ const selectionNotice = computed(() => {
   }
   return SELECTION_NOTICE[businessKey.value] ?? '当前缺少可选数据，请先补齐关联业务后再发起申请。';
 });
-const heroStats = computed(() => [
-  { label: '字段数量', value: allFields.value.length, hint: '按业务定义生成' },
-  { label: '分组数量', value: secondaryFields.value.length > 0 ? 2 : 1, hint: '按信息块拆分表单' },
-  { label: '主动作', value: '提交申请', hint: '主按钮保持唯一' }
-]);
-
 const DYNAMIC_FIELD_KEYS: Record<string, string[]> = {
   'student-return-confirmations': ['relatedLeaveNo'],
   'graduation-project-openings': ['advisorName'],
@@ -159,9 +173,9 @@ const SELECTION_NOTICE: Record<string, string> = {
 };
 
 const OPTION_LOAD_FAILURE_NOTICE: Record<string, string> = {
-  'student-return-confirmations': '返校关联离校单加载失败，请检查后端日志和数据库结构。',
-  'graduation-project-openings': '指导老师选项加载失败，请检查教师账号和角色数据。',
-  'graduation-project-midterms': '开题记录选项加载失败，请检查后端日志和毕业设计开题数据。'
+  'student-return-confirmations': '返校关联离校单加载失败，请稍后重试或联系管理员。',
+  'graduation-project-openings': '指导老师选项加载失败，请稍后重试或联系管理员。',
+  'graduation-project-midterms': '开题记录选项加载失败，请稍后重试或联系管理员。'
 };
 
 function resetForm() {
@@ -252,6 +266,10 @@ async function saveAndSubmit() {
 }
 
 async function initializeForm() {
+  if (moduleUnavailable.value) {
+    errorMessage.value = '';
+    return;
+  }
   if (!canCreate.value) {
     errorMessage.value = '当前角色无权新建该业务';
     void router.replace({ name: 'business-list', params: { businessKey: businessKey.value } });

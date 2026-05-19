@@ -68,8 +68,8 @@ const statusLabel: Record<string, string> = {
 
 const stats = computed(() => [
   { label: '待办总数', value: todos.value.length, hint: '当前需处理任务' },
-  { label: '高频操作', value: '审批处理', hint: '按钮保持单一' },
-  { label: '状态覆盖', value: '统一列表', hint: '和申请页保持同构' }
+  { label: '待审批', value: todos.value.filter((item) => item.status === 'PENDING').length, hint: '等待审批处理' },
+  { label: '审批中', value: todos.value.filter((item) => item.status === 'IN_PROGRESS').length, hint: '正在流转的申请' }
 ]);
 
 async function loadTodos() {

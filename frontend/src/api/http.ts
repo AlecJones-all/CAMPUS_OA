@@ -236,7 +236,7 @@ export async function request<T>(path: string, init?: RequestInit): Promise<ApiR
       headers
     });
   } catch {
-    throw new Error('无法连接后端服务，请确认 Spring Boot 已在 8080 端口启动');
+    throw new Error('服务暂不可用，请稍后重试或联系管理员');
   }
 
   const result = await parseApiResponse<T>(response);
@@ -263,7 +263,7 @@ async function parseApiResponse<T>(response: Response): Promise<ApiResponse<T>> 
   } catch {
     return {
       success: false,
-      message: response.ok ? '后端返回了非 JSON 数据' : `请求失败，HTTP 状态码 ${response.status}`,
+      message: response.ok ? '服务返回异常，请稍后重试' : `请求失败，HTTP 状态码 ${response.status}`,
       data: null as T
     };
   }
@@ -500,7 +500,7 @@ export async function downloadAttachment(id: number, fileName: string) {
       }
     });
   } catch {
-    throw new Error('附件下载失败，无法连接后端服务');
+    throw new Error('附件下载失败，请稍后重试或联系管理员');
   }
 
   if (!response.ok) {

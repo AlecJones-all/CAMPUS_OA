@@ -1,5 +1,24 @@
 <template>
-  <div v-if="detail" class="app-page">
+  <div v-if="moduleUnavailable" class="app-page">
+    <PageHero
+      eyebrow="业务详情"
+      :title="moduleDef?.name ?? '业务详情'"
+      description="该业务暂未开放，暂不能查看详情。"
+    />
+
+    <SectionCard title="业务暂未开放" description="请选择当前开放的业务入口。">
+      <p class="muted-text">
+        该业务暂未开放，请返回工作台或业务入口。
+      </p>
+      <div class="app-actions">
+        <RouterLink :to="backTarget">
+          <el-button type="primary">返回业务入口</el-button>
+        </RouterLink>
+      </div>
+    </SectionCard>
+  </div>
+
+  <div v-else-if="detail" class="app-page">
     <PageHero eyebrow="业务详情" :title="detail.title" :description="detail.businessName">
       <template #actions>
         <el-button
@@ -64,6 +83,7 @@ import PageHero from '../../components/PageHero.vue';
 import SectionCard from '../../components/SectionCard.vue';
 import SummaryStats from '../../components/SummaryStats.vue';
 import { getBusinessRecordDetail, submitBusinessRecord, withdrawWorkflowApplication, type BusinessRecordDetail } from '../../api/http';
+import { getBusinessModule, isBusinessModuleActive } from '../../business/modules';
 
 const route = useRoute();
 const router = useRouter();
@@ -86,6 +106,14 @@ const actionLabel: Record<string, string> = {
   REJECT: '审批驳回',
   WITHDRAW: '申请撤回'
 };
+
+const moduleDef = computed(() => getBusinessModule(businessKey()));
+const moduleUnavailable = computed(() => !isBusinessModuleActive(moduleDef.value));
+const backTarget = computed(() =>
+  moduleDef.value?.domain
+    ? { name: 'module-domain', params: { domain: moduleDef.value.domain } }
+    : { name: 'dashboard' }
+);
 
 const heroStats = computed(() => {
   if (!detail.value) {
@@ -128,6 +156,10 @@ function currentId() {
 }
 
 async function loadDetail() {
+  if (moduleUnavailable.value) {
+    detail.value = null;
+    return;
+  }
   errorMessage.value = '';
   try {
     const response = await getBusinessRecordDetail(businessKey(), currentId());

@@ -1,5 +1,5 @@
 <template>
-  <SectionCard :title="title" description="统一管理当前申请的附件。">
+  <SectionCard :title="title" description="上传和下载本申请相关材料。">
     <template #actions>
       <div v-if="hasTarget" class="app-actions">
         <input ref="fileInputRef" type="file" @change="handleFileChange" />
@@ -101,9 +101,8 @@ const hasTarget = computed(() => typeof props.businessId === 'number' && Number.
 const stats = computed(() => {
   const totalSize = attachments.value.reduce((sum, item) => sum + item.fileSize, 0);
   return [
-    { label: '附件数量', value: attachments.value.length, hint: '当前申请已上传文件数' },
-    { label: '总大小', value: formatSize(totalSize), hint: '用于控制材料体量' },
-    { label: '绑定对象', value: hasTarget.value ? props.businessId ?? '-' : '未创建', hint: '关联业务或流程记录' }
+    { label: '附件数量', value: attachments.value.length, hint: '已上传材料' },
+    { label: '总大小', value: formatSize(totalSize), hint: '已上传材料合计' }
   ];
 });
 

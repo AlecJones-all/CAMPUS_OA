@@ -1,10 +1,6 @@
 <template>
   <div class="app-page">
-    <PageHero eyebrow="流程发起" title="新建申请" description="填写申请类型、标题和申请内容后提交。">
-      <template #meta>
-        <SummaryStats :items="stats" />
-      </template>
-    </PageHero>
+    <PageHero eyebrow="流程发起" title="新建申请" description="填写申请类型、标题和申请内容后提交。" />
 
     <form class="app-page" @submit.prevent="saveDraft">
       <SectionCard title="申请基础信息" description="填写当前申请的基础内容。">
@@ -44,11 +40,10 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue';
+import { onMounted, reactive, ref } from 'vue';
 import { RouterLink, useRouter } from 'vue-router';
 import PageHero from '../../components/PageHero.vue';
 import SectionCard from '../../components/SectionCard.vue';
-import SummaryStats from '../../components/SummaryStats.vue';
 import { createWorkflowApplication, getWorkflowTypes, submitWorkflowApplication, type ApplicationType } from '../../api/http';
 
 const router = useRouter();
@@ -61,12 +56,6 @@ const form = reactive({
   title: '',
   content: ''
 });
-
-const stats = computed(() => [
-  { label: '类型数量', value: types.value.length, hint: '可选流程类型' },
-  { label: '默认状态', value: '草稿', hint: '保存后先生成申请单' },
-  { label: '主操作', value: '提交申请', hint: '提交后进入审批流程' }
-]);
 
 async function loadTypes() {
   const response = await getWorkflowTypes();

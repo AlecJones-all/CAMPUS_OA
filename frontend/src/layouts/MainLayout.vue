@@ -42,7 +42,7 @@
     <main class="layout-main">
       <header class="layout-topbar">
         <div class="layout-topbar__copy">
-          <span class="layout-topbar__eyebrow">待办、申请、业务入口</span>
+          <span class="layout-topbar__eyebrow">工作事务</span>
           <h1>{{ currentPageTitle }}</h1>
           <p>{{ currentPageDescription }}</p>
         </div>
@@ -97,7 +97,7 @@ const menuGroups: Array<{ key: string; label: string; items: MenuItem[] }> = [
     key: 'workspace',
     label: '工作中心',
     items: [
-      { key: 'dashboard', label: '工作台', description: '查看概览、常用入口和平台状态。', to: { name: 'dashboard' }, requiredMenu: 'dashboard' },
+      { key: 'dashboard', label: '工作台', description: '查看待办、申请和常用入口。', to: { name: 'dashboard' }, requiredMenu: 'dashboard' },
       { key: 'workflow-applications', label: '我的申请', description: '查看我发起的申请。', to: { name: 'workflow-applications' }, requiredMenu: 'workflow' },
       { key: 'workflow-todos', label: '我的待办', description: '处理待办审批任务。', to: { name: 'workflow-todos' }, requiredMenu: 'workflow' }
     ]
@@ -106,10 +106,10 @@ const menuGroups: Array<{ key: string; label: string; items: MenuItem[] }> = [
     key: 'business',
     label: '业务入口',
     items: [
-      { key: 'student-affairs', label: '学生事务', description: '请假、销假、实习、奖助学金。', to: { name: 'module-domain', params: { domain: 'student-affairs' } }, requiredMenu: 'student-affairs' },
-      { key: 'academic', label: '教学事务', description: '调课、课程标准、教材征订。', to: { name: 'module-domain', params: { domain: 'academic' } }, requiredMenu: 'academic' },
-      { key: 'research', label: '科研事务', description: '课题申报、中期检查、结题。', to: { name: 'module-domain', params: { domain: 'research' } }, requiredMenu: 'research' },
-      { key: 'logistics', label: '后勤事务', description: '会议室、维修、借用。', to: { name: 'module-domain', params: { domain: 'logistics' } }, requiredMenu: 'logistics' }
+      { key: 'student-affairs', label: '学生事务', description: '请假、销假、实习、异常学生。', to: { name: 'module-domain', params: { domain: 'student-affairs' } }, requiredMenu: 'student-affairs' },
+      { key: 'academic', label: '教学事务', description: '调课、课程标准、教材征订、教室借用。', to: { name: 'module-domain', params: { domain: 'academic' } }, requiredMenu: 'academic' },
+      { key: 'research', label: '科研事务', description: '课题申报。', to: { name: 'module-domain', params: { domain: 'research' } }, requiredMenu: 'research' },
+      { key: 'logistics', label: '后勤事务', description: '会议室、维修、办公用品、用章、车辆。', to: { name: 'module-domain', params: { domain: 'logistics' } }, requiredMenu: 'logistics' }
     ]
   },
   {
@@ -122,7 +122,7 @@ const menuGroups: Array<{ key: string; label: string; items: MenuItem[] }> = [
 ];
 
 const pageTextMap: Record<string, { title: string; description: string }> = {
-  dashboard: { title: '工作台', description: '查看工作概览、常用入口和平台状态。' },
+  dashboard: { title: '工作台', description: '查看待办审批、我的申请和常用业务入口。' },
   'workflow-applications': { title: '我的申请', description: '查看我发起的申请。' },
   'workflow-todos': { title: '我的待办', description: '处理当前待办任务。' },
   'workflow-new': { title: '新建申请', description: '填写申请信息并提交。' },
@@ -131,7 +131,7 @@ const pageTextMap: Record<string, { title: string; description: string }> = {
   'business-list': { title: '业务列表', description: '查看记录并筛选状态。' },
   'business-new': { title: '新建业务', description: '填写业务信息并提交。' },
   'business-detail': { title: '业务详情', description: '查看业务内容、附件和审批记录。' },
-  'module-domain': { title: '模块入口', description: '查看当前业务域下的功能入口。' },
+  'module-domain': { title: '业务入口', description: '查看当前事务类别下的可办理业务。' },
   'system-users': { title: '用户管理', description: '管理平台用户、角色分配和账号状态。' },
   'system-orgs': { title: '组织管理', description: '维护学校、学院、部门和班级。' },
   'system-roles': { title: '角色权限', description: '配置角色和权限。' },
@@ -149,7 +149,7 @@ const visibleMenuGroups = computed(() =>
 );
 
 const currentPageTitle = computed(() => pageTextMap[String(route.name)]?.title ?? '校园 OA 系统');
-const currentPageDescription = computed(() => pageTextMap[String(route.name)]?.description ?? '查看当前页面的业务内容。');
+const currentPageDescription = computed(() => pageTextMap[String(route.name)]?.description ?? '查看当前业务内容。');
 const roleTags = computed(() => appStore.roles.map((role) => roleLabelMap[role] ?? role));
 
 function scrollSidebar(step: number) {
