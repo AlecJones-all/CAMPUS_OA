@@ -24,6 +24,7 @@
               <StatusTag :status="item.status" :label="statusLabel[item.status] ?? item.status" />
             </div>
             <p>{{ item.typeName }} / 申请人 {{ item.applicantName }}</p>
+            <p>当前审批角色：{{ approverLabel(item) }}</p>
             <p>提交时间：{{ item.submittedAt || '-' }}</p>
           </div>
           <div class="record-card__actions">
@@ -71,6 +72,13 @@ const stats = computed(() => [
   { label: '待审批', value: todos.value.filter((item) => item.status === 'PENDING').length, hint: '等待审批处理' },
   { label: '审批中', value: todos.value.filter((item) => item.status === 'IN_PROGRESS').length, hint: '正在流转的申请' }
 ]);
+
+function approverLabel(item: WorkflowApplicationSummary) {
+  if (item.currentApproverRoleCode) {
+    return `${item.currentApproverRoleCode} / ${item.currentApproverName || '未指定人员'}`;
+  }
+  return item.currentApproverName || '未分配';
+}
 
 async function loadTodos() {
   loading.value = true;

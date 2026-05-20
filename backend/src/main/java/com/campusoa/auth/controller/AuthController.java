@@ -3,7 +3,6 @@ package com.campusoa.auth.controller;
 import com.campusoa.auth.dto.LoginRequest;
 import com.campusoa.auth.dto.LoginResponse;
 import com.campusoa.auth.dto.RegisterRequest;
-import com.campusoa.auth.dto.UserProfile;
 import com.campusoa.auth.service.AuthService;
 import com.campusoa.common.ApiResponse;
 import com.campusoa.security.AuthenticatedUser;
@@ -43,12 +42,7 @@ public class AuthController {
     @GetMapping("/profile")
     public ApiResponse<Map<String, Object>> profile(Authentication authentication) {
         AuthenticatedUser user = (AuthenticatedUser) authentication.getPrincipal();
-        UserProfile profile = authService.profile(user);
-        return ApiResponse.ok(Map.of(
-                "profile", profile,
-                "menus", authService.menusFor(user),
-                "permissions", authService.permissionsFor(user)
-        ));
+        return ApiResponse.ok(authService.profilePayload(user));
     }
 
     @PostMapping("/logout")

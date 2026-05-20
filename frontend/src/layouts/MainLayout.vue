@@ -89,7 +89,8 @@ const roleLabelMap: Record<string, string> = {
   ADVISER: '班主任/辅导员',
   RESEARCH: '科技处',
   OFFICE: '教务处',
-  REVIEWER: '评审专家'
+  REVIEWER: '评审专家',
+  STUDENT_AFFAIRS: '学工处'
 };
 
 const menuGroups: Array<{ key: string; label: string; items: MenuItem[] }> = [

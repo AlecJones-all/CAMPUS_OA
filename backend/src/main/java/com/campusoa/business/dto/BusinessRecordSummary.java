@@ -8,6 +8,7 @@ public record BusinessRecordSummary(
         String status,
         String applicantName,
         String currentApproverName,
+        String currentApproverRoleCode,
         LocalDateTime submittedAt,
         LocalDateTime updatedAt
 ) {

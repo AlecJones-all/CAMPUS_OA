@@ -100,7 +100,7 @@ export const businessModules: BusinessModuleDefinition[] = [
     domain: 'research',
     description: '教师提交科研课题申报材料。',
     createRoles: ['TEACHER', 'ADMIN'],
-    visibleRoles: ['TEACHER', 'RESEARCH', 'ADMIN'],
+    visibleRoles: ['TEACHER', 'REVIEWER', 'ADMIN'],
     fields: [
       { key: 'projectName', label: '课题名称', type: 'text', required: true },
       {

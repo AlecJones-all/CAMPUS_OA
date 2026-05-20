@@ -11,6 +11,7 @@ public record WorkflowApplicationSummary(
         String status,
         String applicantName,
         String currentApproverName,
+        String currentApproverRoleCode,
         LocalDateTime submittedAt,
         LocalDateTime updatedAt
 ) {

@@ -30,8 +30,8 @@
           <RouterLink :to="{ name: 'workflow-applications' }">
             <el-button>返回</el-button>
           </RouterLink>
-          <el-button type="primary" plain :loading="submitting" native-type="submit">保存草稿</el-button>
-          <el-button type="primary" :loading="submitting" @click.prevent="saveAndSubmit">提交申请</el-button>
+          <el-button type="primary" plain :loading="submitting" :disabled="types.length === 0" native-type="submit">保存草稿</el-button>
+          <el-button type="primary" :loading="submitting" :disabled="types.length === 0" @click.prevent="saveAndSubmit">提交申请</el-button>
         </div>
         <p v-if="errorMessage" class="error-text" style="margin-top: 12px">{{ errorMessage }}</p>
       </div>
@@ -60,6 +60,9 @@ const form = reactive({
 async function loadTypes() {
   const response = await getWorkflowTypes();
   types.value = response.data;
+  if (types.value.length === 0) {
+    errorMessage.value = '当前角色暂无可发起的通用流程';
+  }
 }
 
 async function createDraftOnly() {

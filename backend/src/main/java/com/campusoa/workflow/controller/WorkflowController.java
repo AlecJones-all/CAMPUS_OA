@@ -15,6 +15,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
@@ -31,8 +32,15 @@ public class WorkflowController {
     }
 
     @GetMapping("/types")
-    public ApiResponse<List<ApplicationTypeDto>> listTypes() {
-        return ApiResponse.ok(workflowService.listTypes());
+    public ApiResponse<List<ApplicationTypeDto>> listTypes(
+            Authentication authentication,
+            @RequestParam(required = false, defaultValue = "creatable") String scope
+    ) {
+        AuthenticatedUser currentUser = (AuthenticatedUser) authentication.getPrincipal();
+        if ("all".equalsIgnoreCase(scope)) {
+            return ApiResponse.ok(workflowService.listAllTypes(currentUser));
+        }
+        return ApiResponse.ok(workflowService.listTypes(currentUser));
     }
 
     @PostMapping("/applications")
@@ -41,7 +49,7 @@ public class WorkflowController {
             @Valid @RequestBody CreateApplicationRequest request
     ) {
         AuthenticatedUser currentUser = (AuthenticatedUser) authentication.getPrincipal();
-        Long applicationId = workflowService.createDraft(currentUser, request);
+        Long applicationId = workflowService.createGenericDraft(currentUser, request);
         return ApiResponse.ok("申请草稿已创建", Map.of("id", applicationId));
     }
 

@@ -1187,12 +1187,12 @@ INSERT IGNORE INTO sys_menu (id, parent_id, menu_name, menu_type, route_path, pe
 INSERT IGNORE INTO sys_role_menu (role_id, menu_id) VALUES
     (1, 1), (1, 2), (1, 3), (1, 4), (1, 5), (1, 6), (1, 7), (1, 101), (1, 102), (1, 103), (1, 104), (1, 105),
     (2, 1), (2, 2), (2, 3), (2, 6),
-    (3, 1), (3, 2), (3, 4), (3, 5), (3, 6),
+    (3, 1), (3, 2), (3, 3), (3, 4), (3, 5), (3, 6),
     (4, 1), (4, 2), (4, 3), (4, 6),
     (5, 1), (5, 2), (5, 5), (5, 6),
     (6, 1), (6, 2), (6, 4), (6, 6),
     (7, 1), (7, 2), (7, 5),
-    (8, 1), (8, 2), (8, 3);
+    (8, 1), (8, 2), (8, 3), (8, 6);
 
 INSERT IGNORE INTO sys_permission (id, permission_code, permission_name, permission_group, status) VALUES
     (1, 'system:user:view', '查看用户', 'SYSTEM_USER', 1),
@@ -1232,7 +1232,7 @@ INSERT IGNORE INTO wf_application_type (id, type_code, type_name, description_te
     (4, 'GENERAL_LOGISTICS', '通用后勤申请', '面向后勤保障事项的通用申请单。', 'ADMIN', 1),
     (11, 'INTERNSHIP_MATERIAL', '实习协议材料', '学生提交实习协议材料。', 'ADVISER', 1),
     (12, 'ABNORMAL_STUDENT_CASE', '异常学生', '班主任登记异常学生信息。', 'ADMIN', 1),
-    (13, 'RESEARCH_PROJECT_REVIEW', '课题申报', '教师提交课题申报。', 'RESEARCH', 1),
+    (13, 'RESEARCH_PROJECT_REVIEW', '课题申报', '教师提交课题申报。', 'REVIEWER', 1),
     (14, 'COURSE_STANDARD_REVIEW', '课程标准', '教师提交课程标准。', 'OFFICE', 1),
     (15, 'LEAVE_APPLICATION', '请假申请', '学生提交请假申请。', 'ADVISER', 1),
     (16, 'LEAVE_CANCELLATION', '销假申请', '学生返校后提交销假。', 'ADVISER', 1),
@@ -1318,7 +1318,7 @@ INSERT IGNORE INTO wf_node_definition (
 ) VALUES
     (1001, 1, 'APPROVE_1', '班主任审批', 'APPROVAL', 'ROLE', 'ADVISER', 1, 1),
     (1002, 2, 'APPROVE_1', '管理员复核', 'APPROVAL', 'ROLE', 'ADMIN', 1, 1),
-    (1003, 3, 'APPROVE_1', '科技处审批', 'APPROVAL', 'ROLE', 'RESEARCH', 1, 1),
+    (1003, 3, 'APPROVE_1', '评审专家审批', 'APPROVAL', 'ROLE', 'REVIEWER', 1, 1),
     (1004, 4, 'APPROVE_1', '教务处审批', 'APPROVAL', 'ROLE', 'OFFICE', 1, 1),
     (1005, 5, 'APPROVE_1', '班主任审批', 'APPROVAL', 'ROLE', 'ADVISER', 1, 1),
     (1006, 6, 'APPROVE_1', '班主任审批', 'APPROVAL', 'ROLE', 'ADVISER', 1, 1),

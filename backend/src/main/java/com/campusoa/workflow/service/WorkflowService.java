@@ -17,8 +17,10 @@ import java.sql.PreparedStatement;
 import java.sql.Statement;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 
 @Service
 public class WorkflowService {
@@ -29,6 +31,10 @@ public class WorkflowService {
     private static final String STATUS_APPROVED = "APPROVED";
     private static final String STATUS_REJECTED = "REJECTED";
     private static final String STATUS_WITHDRAWN = "WITHDRAWN";
+    private static final Set<String> PERSONAL_APPROVAL_TYPE_CODES = Set.of(
+            "GRADUATION_PROJECT_OPENING",
+            "GRADUATION_PROJECT_MIDTERM"
+    );
 
     private final JdbcTemplate jdbcTemplate;
 
@@ -36,26 +42,39 @@ public class WorkflowService {
         this.jdbcTemplate = jdbcTemplate;
     }
 
-    public List<ApplicationTypeDto> listTypes() {
-        return jdbcTemplate.query("""
-                        SELECT id, type_code, type_name, description_text, approver_role_code
-                        FROM wf_application_type
-                        WHERE status = 1
-                        ORDER BY id
-                        """,
-                (rs, rowNum) -> new ApplicationTypeDto(
-                        rs.getLong("id"),
-                        rs.getString("type_code"),
-                        rs.getString("type_name"),
-                        rs.getString("description_text"),
-                        rs.getString("approver_role_code")
-                )
-        );
+    public List<ApplicationTypeDto> listTypes(AuthenticatedUser currentUser) {
+        List<ApplicationTypeDto> types = queryTypes(true);
+        if (isAdmin(currentUser)) {
+            return types;
+        }
+        return types.stream()
+                .filter(type -> canCreateType(currentUser, type.typeCode()))
+                .toList();
+    }
+
+    public List<ApplicationTypeDto> listAllTypes(AuthenticatedUser currentUser) {
+        if (!isAdmin(currentUser)) {
+            throw new WorkflowException("仅管理员可查看全部流程类型");
+        }
+        return queryTypes(false);
     }
 
     @Transactional
     public Long createDraft(AuthenticatedUser currentUser, CreateApplicationRequest request) {
         ApplicationType type = findType(request.typeId());
+        ensureTypeCreatable(currentUser, type);
+        return insertDraft(currentUser, request, type);
+    }
+
+    @Transactional
+    public Long createGenericDraft(AuthenticatedUser currentUser, CreateApplicationRequest request) {
+        ApplicationType type = findType(request.typeId());
+        ensureGenericType(type);
+        ensureTypeCreatable(currentUser, type);
+        return insertDraft(currentUser, request, type);
+    }
+
+    private Long insertDraft(AuthenticatedUser currentUser, CreateApplicationRequest request, ApplicationType type) {
         KeyHolder keyHolder = new GeneratedKeyHolder();
         jdbcTemplate.update(connection -> {
             PreparedStatement statement = connection.prepareStatement("""
@@ -87,6 +106,7 @@ public class WorkflowService {
         ensureStatus(application.status(), STATUS_DRAFT);
 
         ApplicationType type = findType(application.typeId());
+        ensureTypeCreatable(currentUser, type);
         Approver approver = resolveApprover(application, type);
         if (approver == null) {
             throw new WorkflowException("当前申请类型未配置可用审批人");
@@ -106,7 +126,7 @@ public class WorkflowService {
     }
 
     public List<WorkflowApplicationSummary> listMyApplications(AuthenticatedUser currentUser) {
-        return jdbcTemplate.query("""
+        StringBuilder sql = new StringBuilder("""
                         SELECT a.id,
                                a.application_no,
                                a.type_id,
@@ -115,15 +135,23 @@ public class WorkflowService {
                                a.status,
                                applicant.real_name AS applicant_name,
                                approver.real_name AS current_approver_name,
+                               %s AS current_approver_role_code,
                                a.submitted_at,
                                a.updated_at
                         FROM wf_application a
                         JOIN wf_application_type t ON t.id = a.type_id
                         JOIN sys_user applicant ON applicant.id = a.applicant_id
                         LEFT JOIN sys_user approver ON approver.id = a.current_approver_id
-                        WHERE a.applicant_id = ?
-                        ORDER BY a.updated_at DESC, a.id DESC
-                        """,
+                        WHERE 1 = 1
+                        """.formatted(currentApproverRoleSql("t")));
+        List<Object> args = new ArrayList<>();
+        if (!isAdmin(currentUser)) {
+            sql.append(" AND a.applicant_id = ?");
+            args.add(currentUser.userId());
+        }
+        sql.append(" ORDER BY a.updated_at DESC, a.id DESC");
+
+        return jdbcTemplate.query(sql.toString(),
                 (rs, rowNum) -> new WorkflowApplicationSummary(
                         rs.getLong("id"),
                         rs.getString("application_no"),
@@ -133,15 +161,16 @@ public class WorkflowService {
                         rs.getString("status"),
                         rs.getString("applicant_name"),
                         rs.getString("current_approver_name"),
+                        rs.getString("current_approver_role_code"),
                         getDateTime(rs, "submitted_at"),
                         rs.getTimestamp("updated_at").toLocalDateTime()
                 ),
-                currentUser.userId()
+                args.toArray()
         );
     }
 
     public List<WorkflowApplicationSummary> listTodos(AuthenticatedUser currentUser) {
-        return jdbcTemplate.query("""
+        StringBuilder sql = new StringBuilder("""
                         SELECT a.id,
                                a.application_no,
                                a.type_id,
@@ -150,16 +179,22 @@ public class WorkflowService {
                                a.status,
                                applicant.real_name AS applicant_name,
                                approver.real_name AS current_approver_name,
+                               %s AS current_approver_role_code,
                                a.submitted_at,
                                a.updated_at
                         FROM wf_application a
                         JOIN wf_application_type t ON t.id = a.type_id
                         JOIN sys_user applicant ON applicant.id = a.applicant_id
                         LEFT JOIN sys_user approver ON approver.id = a.current_approver_id
-                        WHERE a.current_approver_id = ?
-                          AND a.status IN (?, ?)
-                        ORDER BY a.updated_at DESC, a.id DESC
-                        """,
+                        WHERE a.status IN (?, ?)
+                        """.formatted(currentApproverRoleSql("t")));
+        List<Object> args = new ArrayList<>(List.of(STATUS_PENDING, STATUS_IN_PROGRESS));
+        if (!isAdmin(currentUser)) {
+            appendCurrentApproverPredicate(sql, args, currentUser, "a", "t");
+        }
+        sql.append(" ORDER BY a.updated_at DESC, a.id DESC");
+
+        return jdbcTemplate.query(sql.toString(),
                 (rs, rowNum) -> new WorkflowApplicationSummary(
                         rs.getLong("id"),
                         rs.getString("application_no"),
@@ -169,13 +204,56 @@ public class WorkflowService {
                         rs.getString("status"),
                         rs.getString("applicant_name"),
                         rs.getString("current_approver_name"),
+                        rs.getString("current_approver_role_code"),
                         getDateTime(rs, "submitted_at"),
                         rs.getTimestamp("updated_at").toLocalDateTime()
                 ),
-                currentUser.userId(),
-                STATUS_PENDING,
-                STATUS_IN_PROGRESS
+                args.toArray()
         );
+    }
+
+    private void appendCurrentApproverPredicate(
+            StringBuilder sql,
+            List<Object> args,
+            AuthenticatedUser currentUser,
+            String applicationAlias,
+            String typeAlias
+    ) {
+        sql.append(" AND (").append(applicationAlias).append(".current_approver_id = ?");
+        args.add(currentUser.userId());
+
+        List<String> roles = userRoles(currentUser);
+        if (!roles.isEmpty()) {
+            sql.append("""
+                     OR (
+                         %s.type_code NOT IN ('GRADUATION_PROJECT_OPENING', 'GRADUATION_PROJECT_MIDTERM')
+                         AND %s IN (%s)
+                     )
+                    """.formatted(typeAlias, currentApproverRoleSql(typeAlias), placeholders(roles.size())));
+            args.addAll(roles);
+        }
+        sql.append(")");
+    }
+
+    private String currentApproverRoleSql(String typeAlias) {
+        return """
+                COALESCE((
+                    SELECT n.approver_role_code
+                    FROM wf_definition d
+                    JOIN wf_node_definition n ON n.definition_id = d.id
+                    WHERE d.business_type = %s.type_code
+                      AND d.status = 1
+                      AND n.status = 1
+                      AND n.approver_role_code IS NOT NULL
+                      AND n.approver_role_code <> ''
+                    ORDER BY d.version_no DESC, n.sort_no ASC, n.id ASC
+                    LIMIT 1
+                ), %s.approver_role_code)
+                """.formatted(typeAlias, typeAlias);
+    }
+
+    private String placeholders(int size) {
+        return String.join(", ", java.util.Collections.nCopies(size, "?"));
     }
 
     public WorkflowApplicationDetail getDetail(AuthenticatedUser currentUser, Long applicationId) {
@@ -215,6 +293,7 @@ public class WorkflowService {
                 application.applicantName(),
                 application.currentApproverId(),
                 application.currentApproverName(),
+                application.currentApproverRoleCode(),
                 application.submittedAt(),
                 application.finishedAt(),
                 application.createdAt(),
@@ -236,7 +315,7 @@ public class WorkflowService {
         ensureReadable(currentUser, application);
         return isAdmin(currentUser)
                 || Objects.equals(currentUser.userId(), application.applicantId())
-                || Objects.equals(currentUser.userId(), application.currentApproverId());
+                || isCurrentApprover(currentUser, application);
     }
 
     @Transactional
@@ -244,6 +323,7 @@ public class WorkflowService {
         ApplicationRecord application = findApplication(applicationId);
         ensureApprover(currentUser, application);
         ensureStatus(application.status(), STATUS_PENDING, STATUS_IN_PROGRESS);
+        boolean delegated = isAdmin(currentUser) && !Objects.equals(currentUser.userId(), application.currentApproverId());
 
         jdbcTemplate.update("""
                         UPDATE wf_application
@@ -254,7 +334,14 @@ public class WorkflowService {
                 applicationId
         );
         syncBusinessStatus(applicationId, STATUS_APPROVED);
-        insertRecord(applicationId, "APPROVE", currentUser.userId(), normalizeComment(comment, "审批通过"));
+        insertRecord(
+                applicationId,
+                delegated ? "ADMIN_APPROVE" : "APPROVE",
+                currentUser.userId(),
+                delegated
+                        ? adminDelegationComment(application, comment, "审批通过")
+                        : normalizeComment(comment, "审批通过")
+        );
     }
 
     @Transactional
@@ -262,6 +349,7 @@ public class WorkflowService {
         ApplicationRecord application = findApplication(applicationId);
         ensureApprover(currentUser, application);
         ensureStatus(application.status(), STATUS_PENDING, STATUS_IN_PROGRESS);
+        boolean delegated = isAdmin(currentUser) && !Objects.equals(currentUser.userId(), application.currentApproverId());
 
         jdbcTemplate.update("""
                         UPDATE wf_application
@@ -272,7 +360,14 @@ public class WorkflowService {
                 applicationId
         );
         syncBusinessStatus(applicationId, STATUS_REJECTED);
-        insertRecord(applicationId, "REJECT", currentUser.userId(), normalizeComment(comment, "审批驳回"));
+        insertRecord(
+                applicationId,
+                delegated ? "ADMIN_REJECT" : "REJECT",
+                currentUser.userId(),
+                delegated
+                        ? adminDelegationComment(application, comment, "审批驳回")
+                        : normalizeComment(comment, "审批驳回")
+        );
     }
 
     @Transactional
@@ -316,6 +411,28 @@ public class WorkflowService {
         return type;
     }
 
+    private List<ApplicationTypeDto> queryTypes(boolean genericOnly) {
+        StringBuilder sql = new StringBuilder("""
+                        SELECT id, type_code, type_name, description_text, approver_role_code
+                        FROM wf_application_type
+                        WHERE status = 1
+                        """);
+        if (genericOnly) {
+            sql.append(" AND type_code IN ('GENERAL_STUDENT', 'GENERAL_ACADEMIC', 'GENERAL_RESEARCH', 'GENERAL_LOGISTICS')");
+        }
+        sql.append(" ORDER BY id");
+
+        return jdbcTemplate.query(sql.toString(),
+                (rs, rowNum) -> new ApplicationTypeDto(
+                        rs.getLong("id"),
+                        rs.getString("type_code"),
+                        rs.getString("type_name"),
+                        rs.getString("description_text"),
+                        rs.getString("approver_role_code")
+                )
+        );
+    }
+
     private ApplicationRecord findApplication(Long applicationId) {
         List<ApplicationRecord> applications = jdbcTemplate.query("""
                         SELECT a.id,
@@ -329,6 +446,7 @@ public class WorkflowService {
                                applicant.real_name AS applicant_name,
                                a.current_approver_id,
                                approver.real_name AS current_approver_name,
+                               %s AS current_approver_role_code,
                                a.status,
                                a.submitted_at,
                                a.finished_at,
@@ -339,7 +457,7 @@ public class WorkflowService {
                         JOIN sys_user applicant ON applicant.id = a.applicant_id
                         LEFT JOIN sys_user approver ON approver.id = a.current_approver_id
                         WHERE a.id = ?
-                        """,
+                        """.formatted(currentApproverRoleSql("t")),
                 (rs, rowNum) -> new ApplicationRecord(
                         rs.getLong("id"),
                         rs.getString("application_no"),
@@ -352,6 +470,7 @@ public class WorkflowService {
                         rs.getString("applicant_name"),
                         getLong(rs, "current_approver_id"),
                         rs.getString("current_approver_name"),
+                        rs.getString("current_approver_role_code"),
                         rs.getString("status"),
                         getDateTime(rs, "submitted_at"),
                         getDateTime(rs, "finished_at"),
@@ -610,6 +729,9 @@ public class WorkflowService {
     }
 
     private void ensureApprover(AuthenticatedUser currentUser, ApplicationRecord application) {
+        if (isAdmin(currentUser) || isCurrentApprover(currentUser, application)) {
+            return;
+        }
         if (!Objects.equals(currentUser.userId(), application.currentApproverId())) {
             throw new WorkflowException("当前用户不是该申请单审批人");
         }
@@ -617,7 +739,7 @@ public class WorkflowService {
 
     private void ensureReadable(AuthenticatedUser currentUser, ApplicationRecord application) {
         boolean isApplicant = Objects.equals(currentUser.userId(), application.applicantId());
-        boolean isApprover = Objects.equals(currentUser.userId(), application.currentApproverId());
+        boolean isApprover = isActionableStatus(application.status()) && isCurrentApprover(currentUser, application);
         boolean isAdmin = isAdmin(currentUser);
         boolean hasHandled = hasHandledApplication(currentUser.userId(), application.id());
         boolean isPublishedReadable = STATUS_APPROVED.equals(application.status())
@@ -628,7 +750,101 @@ public class WorkflowService {
     }
 
     private boolean isAdmin(AuthenticatedUser currentUser) {
-        return currentUser.roles().contains("ADMIN") || "ADMIN".equalsIgnoreCase(currentUser.userType());
+        return currentUser != null
+                && (userRoles(currentUser).contains("ADMIN") || "ADMIN".equalsIgnoreCase(currentUser.userType()));
+    }
+
+    private boolean isCurrentApprover(AuthenticatedUser currentUser, ApplicationRecord application) {
+        return currentUser != null
+                && (Objects.equals(currentUser.userId(), application.currentApproverId())
+                || isSharedRoleApprover(currentUser, application));
+    }
+
+    private boolean isSharedRoleApprover(AuthenticatedUser currentUser, ApplicationRecord application) {
+        if (currentUser == null
+                || PERSONAL_APPROVAL_TYPE_CODES.contains(application.typeCode())
+                || application.currentApproverRoleCode() == null
+                || application.currentApproverRoleCode().isBlank()) {
+            return false;
+        }
+        return userRoles(currentUser).contains(application.currentApproverRoleCode());
+    }
+
+    private boolean isActionableStatus(String status) {
+        return STATUS_PENDING.equals(status) || STATUS_IN_PROGRESS.equals(status);
+    }
+
+    private List<String> userRoles(AuthenticatedUser currentUser) {
+        return currentUser == null || currentUser.roles() == null ? List.of() : currentUser.roles();
+    }
+
+    private void ensureTypeCreatable(AuthenticatedUser currentUser, ApplicationType type) {
+        if (!canCreateType(currentUser, type.typeCode())) {
+            throw new WorkflowException("当前角色不能发起该申请类型");
+        }
+    }
+
+    private void ensureGenericType(ApplicationType type) {
+        if (!type.typeCode().startsWith("GENERAL_")) {
+            throw new WorkflowException("请从对应业务模块发起该申请类型");
+        }
+    }
+
+    private boolean canCreateType(AuthenticatedUser currentUser, String typeCode) {
+        if (isAdmin(currentUser)) {
+            return true;
+        }
+        return currentUser.roles().stream().anyMatch(creatorRoles(typeCode)::contains);
+    }
+
+    private Set<String> creatorRoles(String typeCode) {
+        return switch (typeCode) {
+            case "GENERAL_STUDENT",
+                 "INTERNSHIP_MATERIAL",
+                 "LEAVE_APPLICATION",
+                 "LEAVE_CANCELLATION",
+                 "DORM_REPAIR",
+                 "SCHOLARSHIP_APPLICATION",
+                 "GRANT_APPLICATION",
+                 "DIFFICULTY_RECOGNITION",
+                 "ENROLLMENT_CERTIFICATE",
+                 "STUDENT_LEAVE_APPLICATION",
+                 "STUDENT_RETURN_CONFIRMATION",
+                 "GRADUATION_PROJECT_OPENING",
+                 "GRADUATION_PROJECT_MIDTERM",
+                 "DORM_ADJUSTMENT_REQUEST",
+                 "MATERIAL_SUPPLEMENT" -> Set.of("STUDENT");
+            case "GENERAL_ACADEMIC",
+                 "RESEARCH_PROJECT_REVIEW",
+                 "COURSE_STANDARD_REVIEW",
+                 "SCHEDULE_ADJUSTMENT",
+                 "ASSET_REPAIR",
+                 "TEXTBOOK_ORDER",
+                 "COURSE_SUSPENSION_APPLICATION",
+                 "MAKEUP_CLASS_APPLICATION",
+                 "LESSON_PLAN_SUBMISSION",
+                 "TEACHING_OUTLINE_SUBMISSION",
+                 "GRADE_CORRECTION_REQUEST" -> Set.of("TEACHER");
+            case "GENERAL_RESEARCH",
+                 "RESEARCH_MIDTERM_CHECK",
+                 "RESEARCH_COMPLETION_APPLICATION",
+                 "RESEARCH_ACHIEVEMENT_REGISTRATION",
+                 "ACADEMIC_LECTURE_APPLICATION" -> Set.of("TEACHER");
+            case "GENERAL_LOGISTICS" -> Set.of("STUDENT", "TEACHER", "ADVISER", "OFFICE", "RESEARCH");
+            case "ABNORMAL_STUDENT_CASE",
+                 "CLASS_NOTICE_RECEIPT",
+                 "STUDENT_WARNING_PROCESS" -> Set.of("ADVISER");
+            case "EXAM_SCHEDULE_APPLICATION",
+                 "CLASSROOM_BORROW_APPLICATION" -> Set.of("TEACHER", "OFFICE");
+            case "GOODS_BORROW_APPLICATION" -> Set.of("STUDENT", "TEACHER");
+            case "MEETING_ROOM_BOOKING" -> Set.of("TEACHER", "ADVISER", "OFFICE", "RESEARCH");
+            case "OFFICE_SUPPLY_REQUEST",
+                 "LAB_SAFETY_HAZARD_REPORT",
+                 "STAMP_REQUEST",
+                 "VEHICLE_REQUEST",
+                 "ANNOUNCEMENT_PUBLISH" -> Set.of("TEACHER");
+            default -> Set.of();
+        };
     }
 
     private boolean hasHandledApplication(Long userId, Long applicationId) {
@@ -664,8 +880,8 @@ public class WorkflowService {
     }
 
     private boolean canApprove(AuthenticatedUser currentUser, ApplicationRecord application) {
-        return Objects.equals(currentUser.userId(), application.currentApproverId())
-                && (STATUS_PENDING.equals(application.status()) || STATUS_IN_PROGRESS.equals(application.status()));
+        return (isAdmin(currentUser) || isCurrentApprover(currentUser, application))
+                && isActionableStatus(application.status());
     }
 
     private boolean canReject(AuthenticatedUser currentUser, ApplicationRecord application) {
@@ -688,6 +904,13 @@ public class WorkflowService {
 
     private String normalizeComment(String comment, String fallback) {
         return comment == null || comment.isBlank() ? fallback : comment.trim();
+    }
+
+    private String adminDelegationComment(ApplicationRecord application, String comment, String fallback) {
+        String approverName = application.currentApproverName() == null || application.currentApproverName().isBlank()
+                ? "未分配"
+                : application.currentApproverName();
+        return "管理员代审，原审批人：" + approverName + "；意见：" + normalizeComment(comment, fallback);
     }
 
     private record ApplicationType(
@@ -715,6 +938,7 @@ public class WorkflowService {
             String applicantName,
             Long currentApproverId,
             String currentApproverName,
+            String currentApproverRoleCode,
             String status,
             LocalDateTime submittedAt,
             LocalDateTime finishedAt,

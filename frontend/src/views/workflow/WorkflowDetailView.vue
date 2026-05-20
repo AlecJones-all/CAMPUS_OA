@@ -26,8 +26,8 @@
               <strong>{{ detail.applicantName }}</strong>
             </div>
             <div class="field-card">
-              <span>当前审批人</span>
-              <strong>{{ detail.currentApproverName || '未分配' }}</strong>
+              <span>当前审批角色</span>
+              <strong>{{ approverLabel(detail) }}</strong>
             </div>
             <div class="field-card">
               <span>提交时间</span>
@@ -110,7 +110,7 @@ const stats = computed(() => {
   }
   return [
     { label: '当前状态', value: statusLabel[detail.value.status] ?? detail.value.status, hint: '流程状态' },
-    { label: '当前审批人', value: detail.value.currentApproverName || '未分配', hint: '当前处理节点' },
+    { label: '当前审批角色', value: approverLabel(detail.value), hint: '当前处理节点' },
     { label: '记录条数', value: detail.value.records.length, hint: '审批动作数' }
   ];
 });
@@ -134,6 +134,13 @@ const actionItems = computed(() => {
 
 const primaryAction = computed(() => actionItems.value[0] ?? null);
 const moreActions = computed(() => actionItems.value.slice(1));
+
+function approverLabel(item: WorkflowApplicationDetail) {
+  if (item.currentApproverRoleCode) {
+    return `${item.currentApproverRoleCode} / ${item.currentApproverName || '未指定人员'}`;
+  }
+  return item.currentApproverName || '未分配';
+}
 
 function currentId() {
   return Number(route.params.id);

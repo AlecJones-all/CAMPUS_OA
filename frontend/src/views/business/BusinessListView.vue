@@ -30,7 +30,7 @@
               <StatusTag :status="item.status" :label="statusLabel[item.status] ?? item.status" />
             </div>
             <p>申请人：{{ item.applicantName }}</p>
-            <p>当前审批人：{{ item.currentApproverName || '未分配' }}</p>
+            <p>当前审批角色：{{ approverLabel(item) }}</p>
             <p>提交时间：{{ item.submittedAt || '-' }}</p>
           </div>
           <div class="record-card__actions">
@@ -96,6 +96,13 @@ const stats = computed(() => [
   { label: '可提交', value: records.value.filter((item) => item.status === 'DRAFT').length, hint: '草稿待提交' },
   { label: '审批中', value: records.value.filter((item) => item.status === 'PENDING' || item.status === 'IN_PROGRESS').length, hint: '待处理流程' }
 ]);
+
+function approverLabel(item: BusinessRecordSummary) {
+  if (item.currentApproverRoleCode) {
+    return `${item.currentApproverRoleCode} / ${item.currentApproverName || '未指定人员'}`;
+  }
+  return item.currentApproverName || '未分配';
+}
 
 async function loadRecords() {
   loading.value = true;

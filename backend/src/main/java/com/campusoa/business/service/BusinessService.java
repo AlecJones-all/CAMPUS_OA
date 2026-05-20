@@ -137,12 +137,14 @@ public class BusinessService {
                        wf.status,
                        applicant.real_name AS applicant_name,
                        approver.real_name AS current_approver_name,
+                       %s AS current_approver_role_code,
                        wf.submitted_at,
                        b.updated_at
-                """);
+                """.formatted(currentApproverRoleSql("wf_type")));
         sql.append("FROM ").append(definition.tableName()).append("""
                  b
                 JOIN wf_application wf ON wf.id = b.workflow_application_id
+                JOIN wf_application_type wf_type ON wf_type.id = wf.type_id
                 JOIN sys_user applicant ON applicant.id = wf.applicant_id
                 LEFT JOIN sys_user approver ON approver.id = wf.current_approver_id
                 WHERE 1 = 1
@@ -162,15 +164,26 @@ public class BusinessService {
                                AND r.actor_id = ?
                          )
                     """);
+            args.add(currentUser.userId());
+            args.add(currentUser.userId());
+            args.add(currentUser.userId());
+            List<String> roles = userRoles(currentUser);
+            if (!roles.isEmpty()) {
+                sql.append("""
+                         OR (
+                             wf.status IN ('PENDING', 'IN_PROGRESS')
+                             AND wf_type.type_code NOT IN ('GRADUATION_PROJECT_OPENING', 'GRADUATION_PROJECT_MIDTERM')
+                             AND %s IN (%s)
+                         )
+                        """.formatted(currentApproverRoleSql("wf_type"), placeholders(roles.size())));
+                args.addAll(roles);
+            }
             if (publishedReadable) {
                 sql.append(" OR wf.status = 'APPROVED'");
             }
             sql.append("""
                      )
                     """);
-            args.add(currentUser.userId());
-            args.add(currentUser.userId());
-            args.add(currentUser.userId());
         }
         if (status != null && !status.isBlank()) {
             if (!STATUS_FILTERS.contains(status)) {
@@ -188,6 +201,7 @@ public class BusinessService {
                         rs.getString("status"),
                         rs.getString("applicant_name"),
                         rs.getString("current_approver_name"),
+                        rs.getString("current_approver_role_code"),
                         getDateTime(rs.getTimestamp("submitted_at")),
                         rs.getTimestamp("updated_at").toLocalDateTime()
                 ),
@@ -1966,8 +1980,9 @@ public class BusinessService {
             case "research-projects", "course-standards", "schedule-adjustments", "asset-repairs",
                  "textbook-orders", "course-suspension-applications", "makeup-class-applications",
                  "research-midterm-checks", "research-completion-applications" -> currentUser.roles().contains("TEACHER");
-            case "lesson-plan-submissions", "teaching-outline-submissions", "grade-correction-applications",
-                 "exam-schedule-applications", "classroom-borrow-applications" ->
+            case "lesson-plan-submissions", "teaching-outline-submissions", "grade-correction-applications" ->
+                    currentUser.roles().contains("TEACHER");
+            case "exam-schedule-applications", "classroom-borrow-applications" ->
                     currentUser.roles().stream().anyMatch(List.of("TEACHER", "OFFICE")::contains);
             case "student-leave-applications", "student-return-confirmations", "graduation-project-openings", "graduation-project-midterms" ->
                     currentUser.roles().contains("STUDENT");
@@ -1987,7 +2002,33 @@ public class BusinessService {
     }
 
     private boolean isAdmin(AuthenticatedUser currentUser) {
-        return currentUser.roles().contains("ADMIN") || "ADMIN".equalsIgnoreCase(currentUser.userType());
+        return currentUser != null
+                && (userRoles(currentUser).contains("ADMIN") || "ADMIN".equalsIgnoreCase(currentUser.userType()));
+    }
+
+    private List<String> userRoles(AuthenticatedUser currentUser) {
+        return currentUser == null || currentUser.roles() == null ? List.of() : currentUser.roles();
+    }
+
+    private String currentApproverRoleSql(String typeAlias) {
+        return """
+                COALESCE((
+                    SELECT n.approver_role_code
+                    FROM wf_definition d
+                    JOIN wf_node_definition n ON n.definition_id = d.id
+                    WHERE d.business_type = %s.type_code
+                      AND d.status = 1
+                      AND n.status = 1
+                      AND n.approver_role_code IS NOT NULL
+                      AND n.approver_role_code <> ''
+                    ORDER BY d.version_no DESC, n.sort_no ASC, n.id ASC
+                    LIMIT 1
+                ), %s.approver_role_code)
+                """.formatted(typeAlias, typeAlias);
+    }
+
+    private String placeholders(int size) {
+        return String.join(", ", java.util.Collections.nCopies(size, "?"));
     }
 
     private boolean isPublishedReadableBusiness(AuthenticatedUser currentUser, BusinessDefinition definition) {
@@ -2011,7 +2052,7 @@ public class BusinessService {
             );
             case "research-projects" -> new BusinessDefinition(
                     "research-projects", "课题申报", "biz_project_application", "RESEARCH_PROJECT_REVIEW",
-                    List.of("RESEARCH"),
+                    List.of("REVIEWER"),
                     "project_name",
                     "project_name"
             );
@@ -2714,5 +2755,3 @@ public class BusinessService {
     ) {
     }
 }
-
-

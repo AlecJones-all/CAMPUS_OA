@@ -93,7 +93,7 @@ const heroStats = computed(() => {
   }
   return [
     { label: '当前状态', value: statusLabel[detail.value.workflow.status] ?? detail.value.workflow.status, hint: '流程状态' },
-    { label: '当前审批人', value: detail.value.workflow.currentApproverName || '未分配', hint: '当前处理节点' },
+    { label: '当前审批角色', value: workflowApproverLabel(detail.value.workflow), hint: '当前处理节点' },
     { label: '记录条数', value: detail.value.workflow.records.length, hint: '审批记录数' }
   ];
 });
@@ -118,6 +118,13 @@ const actionItems = computed(() => {
 
 const primaryAction = computed(() => actionItems.value[0] ?? null);
 const moreActions = computed(() => actionItems.value.slice(1));
+
+function workflowApproverLabel(workflow: BusinessRecordDetail['workflow']) {
+  if (workflow.currentApproverRoleCode) {
+    return `${workflow.currentApproverRoleCode} / ${workflow.currentApproverName || '未指定人员'}`;
+  }
+  return workflow.currentApproverName || '未分配';
+}
 
 function businessKey() {
   return String(route.params.businessKey ?? '');

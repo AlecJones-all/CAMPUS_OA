@@ -15,6 +15,7 @@ public record WorkflowApplicationDetail(
         String applicantName,
         Long currentApproverId,
         String currentApproverName,
+        String currentApproverRoleCode,
         LocalDateTime submittedAt,
         LocalDateTime finishedAt,
         LocalDateTime createdAt,

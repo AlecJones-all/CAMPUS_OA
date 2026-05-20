@@ -18,6 +18,22 @@ import java.util.Objects;
 @Service
 public class SystemAdminService {
 
+    private static final String PERMISSION_USER_VIEW = "system:user:view";
+    private static final String PERMISSION_USER_CREATE = "system:user:create";
+    private static final String PERMISSION_USER_UPDATE = "system:user:update";
+    private static final String PERMISSION_USER_ASSIGN_ROLE = "system:user:assign-role";
+    private static final String PERMISSION_ORG_VIEW = "system:org:view";
+    private static final String PERMISSION_ORG_CREATE = "system:org:create";
+    private static final String PERMISSION_ORG_UPDATE = "system:org:update";
+    private static final String PERMISSION_ROLE_VIEW = "system:role:view";
+    private static final String PERMISSION_ROLE_CREATE = "system:role:create";
+    private static final String PERMISSION_ROLE_UPDATE = "system:role:update";
+    private static final String PERMISSION_ROLE_ASSIGN_MENU = "system:role:assign-menu";
+    private static final String PERMISSION_ROLE_ASSIGN_PERMISSION = "system:role:assign-permission";
+    private static final String PERMISSION_WORKFLOW_VIEW = "system:workflow:view";
+    private static final String PERMISSION_WORKFLOW_CREATE = "system:workflow:create";
+    private static final String PERMISSION_WORKFLOW_UPDATE = "system:workflow:update";
+
     private final JdbcTemplate jdbcTemplate;
 
     public SystemAdminService(JdbcTemplate jdbcTemplate) {
@@ -25,7 +41,7 @@ public class SystemAdminService {
     }
 
     public List<Map<String, Object>> listUsers(AuthenticatedUser currentUser) {
-        ensureAdmin(currentUser);
+        ensurePermission(currentUser, PERMISSION_USER_VIEW);
         return jdbcTemplate.query("""
                         SELECT u.id,
                                u.username,
@@ -71,7 +87,7 @@ public class SystemAdminService {
 
     @Transactional
     public Long createUser(AuthenticatedUser currentUser, Map<String, Object> payload) {
-        ensureAdmin(currentUser);
+        ensurePermission(currentUser, PERMISSION_USER_CREATE);
         String username = requiredString(payload, "username", "用户名不能为空");
         String password = requiredString(payload, "password", "密码不能为空");
         String realName = requiredString(payload, "realName", "姓名不能为空");
@@ -99,7 +115,7 @@ public class SystemAdminService {
 
     @Transactional
     public void updateUser(AuthenticatedUser currentUser, Long userId, Map<String, Object> payload) {
-        ensureAdmin(currentUser);
+        ensurePermission(currentUser, PERMISSION_USER_UPDATE);
         ensureUserExists(userId);
 
         String username = requiredString(payload, "username", "用户名不能为空");
@@ -126,14 +142,14 @@ public class SystemAdminService {
 
     @Transactional
     public void assignUserRoles(AuthenticatedUser currentUser, Long userId, List<Long> roleIds) {
-        ensureAdmin(currentUser);
+        ensurePermission(currentUser, PERMISSION_USER_ASSIGN_ROLE);
         ensureUserExists(userId);
         assignUserRolesInternal(userId, roleIds);
     }
 
     @Transactional
     public void updateUserStatus(AuthenticatedUser currentUser, Long userId, int status) {
-        ensureAdmin(currentUser);
+        ensurePermission(currentUser, PERMISSION_USER_UPDATE);
         ensureUserExists(userId);
         jdbcTemplate.update("""
                         UPDATE sys_user
@@ -145,7 +161,7 @@ public class SystemAdminService {
     }
 
     public List<Map<String, Object>> listOrgTree(AuthenticatedUser currentUser) {
-        ensureAdmin(currentUser);
+        ensurePermission(currentUser, PERMISSION_ORG_VIEW);
         List<Map<String, Object>> flat = jdbcTemplate.query("""
                         SELECT id, parent_id, org_code, org_name, org_type, sort_no, status, created_at, updated_at
                         FROM sys_org
@@ -192,7 +208,7 @@ public class SystemAdminService {
 
     @Transactional
     public Long createOrg(AuthenticatedUser currentUser, Map<String, Object> payload) {
-        ensureAdmin(currentUser);
+        ensurePermission(currentUser, PERMISSION_ORG_CREATE);
         Long parentId = optionalLong(payload, "parentId");
         String orgCode = requiredString(payload, "orgCode", "组织编码不能为空");
         String orgName = requiredString(payload, "orgName", "组织名称不能为空");
@@ -216,7 +232,7 @@ public class SystemAdminService {
 
     @Transactional
     public void updateOrg(AuthenticatedUser currentUser, Long orgId, Map<String, Object> payload) {
-        ensureAdmin(currentUser);
+        ensurePermission(currentUser, PERMISSION_ORG_UPDATE);
         ensureOrgExists(orgId);
 
         Long parentId = optionalLong(payload, "parentId");
@@ -244,7 +260,7 @@ public class SystemAdminService {
     }
 
     public List<Map<String, Object>> listRoles(AuthenticatedUser currentUser) {
-        ensureAdmin(currentUser);
+        ensurePermission(currentUser, PERMISSION_ROLE_VIEW);
         return jdbcTemplate.query("""
                         SELECT r.id,
                                r.role_code,
@@ -276,7 +292,7 @@ public class SystemAdminService {
 
     @Transactional
     public Long createRole(AuthenticatedUser currentUser, Map<String, Object> payload) {
-        ensureAdmin(currentUser);
+        ensurePermission(currentUser, PERMISSION_ROLE_CREATE);
         String roleCode = requiredString(payload, "roleCode", "角色编码不能为空");
         String roleName = requiredString(payload, "roleName", "角色名称不能为空");
         int status = normalizeStatus(payload.get("status"));
@@ -293,7 +309,7 @@ public class SystemAdminService {
 
     @Transactional
     public void updateRole(AuthenticatedUser currentUser, Long roleId, Map<String, Object> payload) {
-        ensureAdmin(currentUser);
+        ensurePermission(currentUser, PERMISSION_ROLE_UPDATE);
         ensureRoleExists(roleId);
 
         String roleCode = requiredString(payload, "roleCode", "角色编码不能为空");
@@ -311,7 +327,7 @@ public class SystemAdminService {
     }
 
     public List<Map<String, Object>> listMenus(AuthenticatedUser currentUser) {
-        ensureAdmin(currentUser);
+        ensurePermission(currentUser, PERMISSION_ROLE_VIEW);
         return jdbcTemplate.query("""
                         SELECT id, parent_id, menu_name, menu_type, route_path, permission_code, sort_no, status
                         FROM sys_menu
@@ -334,7 +350,7 @@ public class SystemAdminService {
 
     @Transactional
     public void assignRoleMenus(AuthenticatedUser currentUser, Long roleId, List<Long> menuIds) {
-        ensureAdmin(currentUser);
+        ensurePermission(currentUser, PERMISSION_ROLE_ASSIGN_MENU);
         ensureRoleExists(roleId);
         jdbcTemplate.update("DELETE FROM sys_role_menu WHERE role_id = ?", roleId);
         for (Long menuId : sanitizeIds(menuIds)) {
@@ -349,7 +365,7 @@ public class SystemAdminService {
     }
 
     public List<Map<String, Object>> listPermissions(AuthenticatedUser currentUser) {
-        ensureAdmin(currentUser);
+        ensurePermission(currentUser, PERMISSION_ROLE_VIEW);
         return jdbcTemplate.query("""
                         SELECT id, permission_code, permission_name, permission_group, status
                         FROM sys_permission
@@ -369,7 +385,7 @@ public class SystemAdminService {
 
     @Transactional
     public void assignRolePermissions(AuthenticatedUser currentUser, Long roleId, List<Long> permissionIds) {
-        ensureAdmin(currentUser);
+        ensurePermission(currentUser, PERMISSION_ROLE_ASSIGN_PERMISSION);
         ensureRoleExists(roleId);
         jdbcTemplate.update("DELETE FROM sys_role_permission WHERE role_id = ?", roleId);
         for (Long permissionId : sanitizeIds(permissionIds)) {
@@ -384,7 +400,7 @@ public class SystemAdminService {
     }
 
     public List<Map<String, Object>> listWorkflowDefinitions(AuthenticatedUser currentUser) {
-        ensureAdmin(currentUser);
+        ensurePermission(currentUser, PERMISSION_WORKFLOW_VIEW);
         return jdbcTemplate.query("""
                         SELECT d.id,
                                d.business_type,
@@ -418,7 +434,7 @@ public class SystemAdminService {
 
     @Transactional
     public Long createWorkflowDefinition(AuthenticatedUser currentUser, Map<String, Object> payload) {
-        ensureAdmin(currentUser);
+        ensurePermission(currentUser, PERMISSION_WORKFLOW_CREATE);
         String businessType = requiredString(payload, "businessType", "业务类型不能为空");
         String definitionCode = requiredString(payload, "definitionCode", "流程编码不能为空");
         String definitionName = requiredString(payload, "definitionName", "流程名称不能为空");
@@ -437,7 +453,7 @@ public class SystemAdminService {
 
     @Transactional
     public void updateWorkflowDefinition(AuthenticatedUser currentUser, Long definitionId, Map<String, Object> payload) {
-        ensureAdmin(currentUser);
+        ensurePermission(currentUser, PERMISSION_WORKFLOW_UPDATE);
         ensureWorkflowDefinitionExists(definitionId);
 
         String businessType = requiredString(payload, "businessType", "业务类型不能为空");
@@ -457,7 +473,7 @@ public class SystemAdminService {
     }
 
     public List<Map<String, Object>> listWorkflowNodes(AuthenticatedUser currentUser, Long definitionId) {
-        ensureAdmin(currentUser);
+        ensurePermission(currentUser, PERMISSION_WORKFLOW_VIEW);
         ensureWorkflowDefinitionExists(definitionId);
         return jdbcTemplate.query("""
                         SELECT id, node_code, node_name, node_type, approver_type, approver_role_code, sort_no, status
@@ -483,7 +499,7 @@ public class SystemAdminService {
 
     @Transactional
     public void saveWorkflowNodes(AuthenticatedUser currentUser, Long definitionId, List<Map<String, Object>> nodes) {
-        ensureAdmin(currentUser);
+        ensurePermission(currentUser, PERMISSION_WORKFLOW_UPDATE);
         ensureWorkflowDefinitionExists(definitionId);
         jdbcTemplate.update("DELETE FROM wf_node_definition WHERE definition_id = ?", definitionId);
 
@@ -531,10 +547,38 @@ public class SystemAdminService {
                 .toList();
     }
 
-    private void ensureAdmin(AuthenticatedUser currentUser) {
-        if (currentUser == null || (!currentUser.roles().contains("ADMIN") && !"ADMIN".equalsIgnoreCase(currentUser.userType()))) {
-            throw new SystemException("仅系统管理员可执行该操作");
+    private void ensurePermission(AuthenticatedUser currentUser, String permissionCode) {
+        if (isAdmin(currentUser) || hasPermission(currentUser, permissionCode)) {
+            return;
         }
+        throw new SystemException("无权限访问该系统功能");
+    }
+
+    private boolean isAdmin(AuthenticatedUser currentUser) {
+        return currentUser != null
+                && (currentUser.roles().contains("ADMIN") || "ADMIN".equalsIgnoreCase(currentUser.userType()));
+    }
+
+    private boolean hasPermission(AuthenticatedUser currentUser, String permissionCode) {
+        if (currentUser == null || permissionCode == null || permissionCode.isBlank()) {
+            return false;
+        }
+        Integer count = jdbcTemplate.queryForObject("""
+                        SELECT COUNT(1)
+                        FROM sys_permission p
+                        JOIN sys_role_permission rp ON rp.permission_id = p.id
+                        JOIN sys_role r ON r.id = rp.role_id
+                        JOIN sys_user_role ur ON ur.role_id = r.id
+                        WHERE ur.user_id = ?
+                          AND p.permission_code = ?
+                          AND p.status = 1
+                          AND r.status = 1
+                        """,
+                Integer.class,
+                currentUser.userId(),
+                permissionCode
+        );
+        return count != null && count > 0;
     }
 
     private void ensureUserUnique(String username, Long excludeId) {

@@ -17,6 +17,8 @@ import SystemOrgsView from '../views/system/SystemOrgsView.vue';
 import SystemRolesView from '../views/system/SystemRolesView.vue';
 import SystemFilesView from '../views/system/SystemFilesView.vue';
 import SystemWorkflowDefinitionsView from '../views/system/SystemWorkflowDefinitionsView.vue';
+import { canCreateBusinessModule, canViewBusinessModule, getBusinessModule } from '../business/modules';
+import { canCreateGenericWorkflow } from '../workflow/permissions';
 
 const router = createRouter({
   history: createWebHistory(),
@@ -85,36 +87,44 @@ const router = createRouter({
           path: 'system/users',
           name: 'system-users',
           component: SystemUsersView,
-          meta: { requiredMenu: 'system' }
+          meta: { requiredMenu: 'system', requiredPermission: 'system:user:view' }
         },
         {
           path: 'system/orgs',
           name: 'system-orgs',
           component: SystemOrgsView,
-          meta: { requiredMenu: 'system' }
+          meta: { requiredMenu: 'system', requiredPermission: 'system:org:view' }
         },
         {
           path: 'system/roles',
           name: 'system-roles',
           component: SystemRolesView,
-          meta: { requiredMenu: 'system' }
+          meta: { requiredMenu: 'system', requiredPermission: 'system:role:view' }
         },
         {
           path: 'system/files',
           name: 'system-files',
           component: SystemFilesView,
-          meta: { requiredMenu: 'system' }
+          meta: { requiredMenu: 'system', requiredPermission: 'system:file:view' }
         },
         {
           path: 'system/workflows',
           name: 'system-workflows',
           component: SystemWorkflowDefinitionsView,
-          meta: { requiredMenu: 'system' }
+          meta: { requiredMenu: 'system', requiredPermission: 'system:workflow:view' }
         }
       ]
     }
   ]
 });
+
+const domainMenuMap: Record<string, string> = {
+  'student-affairs': 'student-affairs',
+  academic: 'academic',
+  research: 'research',
+  logistics: 'logistics',
+  system: 'system'
+};
 
 router.beforeEach(async (to) => {
   const appStore = useAppStore();
@@ -125,9 +135,35 @@ router.beforeEach(async (to) => {
   if (to.name === 'login' && appStore.isLoggedIn) {
     return { name: 'dashboard' };
   }
-  const requiredMenu = typeof to.meta.requiredMenu === 'string' ? to.meta.requiredMenu : '';
+  let requiredMenu = typeof to.meta.requiredMenu === 'string' ? to.meta.requiredMenu : '';
+  if (to.name === 'module-domain') {
+    const mappedMenu = domainMenuMap[String(to.params.domain ?? '')];
+    if (!mappedMenu) {
+      return { name: 'dashboard' };
+    }
+    requiredMenu = mappedMenu;
+  }
   if (requiredMenu && !appStore.menus.includes(requiredMenu)) {
     return { name: 'dashboard' };
+  }
+  const requiredPermission = typeof to.meta.requiredPermission === 'string' ? to.meta.requiredPermission : '';
+  if (requiredPermission && !appStore.permissions.includes(requiredPermission)) {
+    return { name: 'dashboard' };
+  }
+  if (to.name === 'workflow-new' && !canCreateGenericWorkflow(appStore.roles)) {
+    return { name: 'workflow-applications' };
+  }
+  if (to.name === 'business-list' || to.name === 'business-detail' || to.name === 'business-new') {
+    const moduleDef = getBusinessModule(String(to.params.businessKey ?? ''));
+    if (!moduleDef) {
+      return { name: 'dashboard' };
+    }
+    const allowed = to.name === 'business-new'
+      ? canCreateBusinessModule(moduleDef, appStore.roles)
+      : canViewBusinessModule(moduleDef, appStore.roles);
+    if (!allowed) {
+      return { name: 'dashboard' };
+    }
   }
   return true;
 });

@@ -32,6 +32,9 @@ import java.util.UUID;
 public class FileService {
 
     private static final String WORKFLOW_APPLICATION = "WORKFLOW_APPLICATION";
+    private static final String PERMISSION_FILE_VIEW = "system:file:view";
+    private static final String PERMISSION_FILE_UPLOAD = "system:file:upload";
+    private static final String PERMISSION_FILE_DELETE = "system:file:delete";
 
     private final JdbcTemplate jdbcTemplate;
     private final WorkflowService workflowService;
@@ -43,7 +46,7 @@ public class FileService {
 
     public List<Map<String, Object>> listFiles(AuthenticatedUser currentUser, String businessType, Long businessId) {
         if (businessType == null || businessType.isBlank() || businessId == null) {
-            ensureAdmin(currentUser);
+            ensurePermission(currentUser, PERMISSION_FILE_VIEW);
             return queryFiles(null, null);
         }
         ensureReadable(currentUser, businessType, businessId);
@@ -125,10 +128,11 @@ public class FileService {
     public void delete(AuthenticatedUser currentUser, Long attachmentId) {
         Attachment attachment = findAttachment(attachmentId);
         boolean isAdmin = isAdmin(currentUser);
-        boolean isUploader = Objects.equals(currentUser.userId(), attachment.uploadedBy());
+        boolean isUploader = currentUser != null && Objects.equals(currentUser.userId(), attachment.uploadedBy());
+        boolean hasDeletePermission = hasPermission(currentUser, PERMISSION_FILE_DELETE);
         ensureReadable(currentUser, attachment.businessType(), attachment.businessId());
-        if (!isAdmin && !isUploader) {
-            throw new SystemException("仅上传人或管理员可删除附件");
+        if (!isAdmin && !isUploader && !hasDeletePermission) {
+            throw new SystemException("无权限删除附件");
         }
 
         jdbcTemplate.update("""
@@ -217,7 +221,7 @@ public class FileService {
             workflowService.ensureReadable(currentUser, businessId);
             return;
         }
-        ensureAdmin(currentUser);
+        ensurePermission(currentUser, PERMISSION_FILE_VIEW);
     }
 
     private void ensureWritable(AuthenticatedUser currentUser, String businessType, Long businessId) {
@@ -227,7 +231,7 @@ public class FileService {
             }
             return;
         }
-        ensureAdmin(currentUser);
+        ensurePermission(currentUser, PERMISSION_FILE_UPLOAD);
     }
 
     private Path resolveUploadDir(String businessType) {
@@ -235,14 +239,37 @@ public class FileService {
         return Path.of(System.getProperty("user.dir"), "uploads", businessType.toLowerCase(), dayPath);
     }
 
-    private void ensureAdmin(AuthenticatedUser currentUser) {
-        if (!isAdmin(currentUser)) {
-            throw new SystemException("仅系统管理员可执行该操作");
+    private void ensurePermission(AuthenticatedUser currentUser, String permissionCode) {
+        if (isAdmin(currentUser) || hasPermission(currentUser, permissionCode)) {
+            return;
         }
+        throw new SystemException("无权限访问该附件功能");
     }
 
     private boolean isAdmin(AuthenticatedUser currentUser) {
         return currentUser != null && (currentUser.roles().contains("ADMIN") || "ADMIN".equalsIgnoreCase(currentUser.userType()));
+    }
+
+    private boolean hasPermission(AuthenticatedUser currentUser, String permissionCode) {
+        if (currentUser == null || permissionCode == null || permissionCode.isBlank()) {
+            return false;
+        }
+        Integer count = jdbcTemplate.queryForObject("""
+                        SELECT COUNT(1)
+                        FROM sys_permission p
+                        JOIN sys_role_permission rp ON rp.permission_id = p.id
+                        JOIN sys_role r ON r.id = rp.role_id
+                        JOIN sys_user_role ur ON ur.role_id = r.id
+                        WHERE ur.user_id = ?
+                          AND p.permission_code = ?
+                          AND p.status = 1
+                          AND r.status = 1
+                        """,
+                Integer.class,
+                currentUser.userId(),
+                permissionCode
+        );
+        return count != null && count > 0;
     }
 
     private LocalDateTime toLocalDateTime(Timestamp timestamp) {

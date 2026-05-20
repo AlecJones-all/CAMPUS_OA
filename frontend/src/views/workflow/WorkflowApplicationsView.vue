@@ -5,7 +5,7 @@
         <RouterLink :to="{ name: 'workflow-todos' }">
           <el-button plain>我的待办</el-button>
         </RouterLink>
-        <RouterLink :to="{ name: 'workflow-new' }">
+        <RouterLink v-if="canCreateWorkflow" :to="{ name: 'workflow-new' }">
           <el-button type="primary">新建申请</el-button>
         </RouterLink>
       </template>
@@ -31,7 +31,7 @@
               <StatusTag :status="item.status" :label="statusLabel[item.status] ?? item.status" />
             </div>
             <p>{{ item.typeName }} / 单号 {{ item.applicationNo }}</p>
-            <p>当前审批人：{{ item.currentApproverName || '未分配' }}</p>
+            <p>当前审批角色：{{ approverLabel(item) }}</p>
             <p>提交时间：{{ item.submittedAt || '-' }}</p>
           </div>
           <div class="record-card__actions">
@@ -49,7 +49,7 @@
         badge="申请"
       >
         <template #actions>
-          <RouterLink :to="{ name: 'workflow-new' }">
+          <RouterLink v-if="canCreateWorkflow" :to="{ name: 'workflow-new' }">
             <el-button type="primary">新建申请</el-button>
           </RouterLink>
         </template>
@@ -66,10 +66,14 @@ import SectionCard from '../../components/SectionCard.vue';
 import StatusTag from '../../components/StatusTag.vue';
 import SummaryStats from '../../components/SummaryStats.vue';
 import { listMyWorkflowApplications, type WorkflowApplicationSummary } from '../../api/http';
+import { useAppStore } from '../../stores/app';
+import { canCreateGenericWorkflow } from '../../workflow/permissions';
 
+const appStore = useAppStore();
 const loading = ref(false);
 const errorMessage = ref('');
 const applications = ref<WorkflowApplicationSummary[]>([]);
+const canCreateWorkflow = computed(() => canCreateGenericWorkflow(appStore.roles));
 
 const statusLabel: Record<string, string> = {
   DRAFT: '草稿',
@@ -85,6 +89,13 @@ const stats = computed(() => [
   { label: '审批中', value: applications.value.filter((item) => item.status === 'PENDING' || item.status === 'IN_PROGRESS').length, hint: '进行中的流程' },
   { label: '已完成', value: applications.value.filter((item) => item.status === 'APPROVED').length, hint: '已通过申请' }
 ]);
+
+function approverLabel(item: WorkflowApplicationSummary) {
+  if (item.currentApproverRoleCode) {
+    return `${item.currentApproverRoleCode} / ${item.currentApproverName || '未指定人员'}`;
+  }
+  return item.currentApproverName || '未分配';
+}
 
 async function loadApplications() {
   loading.value = true;

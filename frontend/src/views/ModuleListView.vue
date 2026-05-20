@@ -55,17 +55,18 @@ interface ModuleCardItem {
   canCreate?: boolean;
   routeName?: string;
   actionLabel?: string;
+  requiredPermission?: string;
 }
 
 const route = useRoute();
 const appStore = useAppStore();
 
 const systemItems: ModuleCardItem[] = [
-  { name: '用户管理', desc: '维护用户账号、组织归属和角色分配。', routeName: 'system-users', actionLabel: '进入用户管理', badge: '基础' },
-  { name: '组织管理', desc: '维护学校、学院、部门和班级。', routeName: 'system-orgs', actionLabel: '进入组织管理', badge: '组织' },
-  { name: '角色权限', desc: '维护角色和权限。', routeName: 'system-roles', actionLabel: '进入角色权限', badge: '权限' },
-  { name: '附件中心', desc: '查询和管理附件。', routeName: 'system-files', actionLabel: '进入附件中心', badge: '附件' },
-  { name: '流程模板', desc: '维护流程模板和审批节点。', routeName: 'system-workflows', actionLabel: '进入流程模板', badge: '流程' }
+  { name: '用户管理', desc: '维护用户账号、组织归属和角色分配。', routeName: 'system-users', actionLabel: '进入用户管理', badge: '基础', requiredPermission: 'system:user:view' },
+  { name: '组织管理', desc: '维护学校、学院、部门和班级。', routeName: 'system-orgs', actionLabel: '进入组织管理', badge: '组织', requiredPermission: 'system:org:view' },
+  { name: '角色权限', desc: '维护角色和权限。', routeName: 'system-roles', actionLabel: '进入角色权限', badge: '权限', requiredPermission: 'system:role:view' },
+  { name: '附件中心', desc: '查询和管理附件。', routeName: 'system-files', actionLabel: '进入附件中心', badge: '附件', requiredPermission: 'system:file:view' },
+  { name: '流程模板', desc: '维护流程模板和审批节点。', routeName: 'system-workflows', actionLabel: '进入流程模板', badge: '流程', requiredPermission: 'system:workflow:view' }
 ];
 
 const modules: Record<string, { title: string; description: string; eyebrow: string }> = {
@@ -83,7 +84,7 @@ const heroLabel = computed(() => modules[domain.value]?.eyebrow ?? '业务办理
 
 const items = computed<ModuleCardItem[]>(() => {
   if (domain.value === 'system') {
-    return systemItems;
+    return systemItems.filter((item) => !item.requiredPermission || appStore.permissions.includes(item.requiredPermission));
   }
 
   return getBusinessModulesByDomain(domain.value)

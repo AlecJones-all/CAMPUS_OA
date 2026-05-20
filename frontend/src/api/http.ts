@@ -57,6 +57,7 @@ export interface WorkflowApplicationSummary {
   status: string;
   applicantName: string;
   currentApproverName: string | null;
+  currentApproverRoleCode: string | null;
   submittedAt: string | null;
   updatedAt: string;
 }
@@ -81,6 +82,7 @@ export interface WorkflowApplicationDetail {
   applicantName: string;
   currentApproverId: number | null;
   currentApproverName: string | null;
+  currentApproverRoleCode: string | null;
   submittedAt: string | null;
   finishedAt: string | null;
   createdAt: string;
@@ -104,6 +106,7 @@ export interface BusinessRecordSummary {
   status: string;
   applicantName: string;
   currentApproverName: string | null;
+  currentApproverRoleCode: string | null;
   submittedAt: string | null;
   updatedAt: string;
 }
@@ -299,6 +302,10 @@ export function logout() {
 
 export function getWorkflowTypes() {
   return request<ApplicationType[]>('/workflow/types');
+}
+
+export function getAllWorkflowTypes() {
+  return request<ApplicationType[]>('/workflow/types?scope=all');
 }
 
 export function createWorkflowApplication(payload: { typeId: number; title: string; content: string }) {

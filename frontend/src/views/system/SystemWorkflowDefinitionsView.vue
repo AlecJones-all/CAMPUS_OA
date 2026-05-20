@@ -141,7 +141,7 @@ import SectionCard from '../../components/SectionCard.vue';
 import SummaryStats from '../../components/SummaryStats.vue';
 import {
   createWorkflowDefinition,
-  getWorkflowTypes,
+  getAllWorkflowTypes,
   listSystemRoles,
   listWorkflowDefinitions,
   listWorkflowNodes,
@@ -182,7 +182,7 @@ async function loadData() {
   errorMessage.value = '';
   try {
     const [typeRes, roleRes, definitionRes] = await Promise.all([
-      getWorkflowTypes(),
+      getAllWorkflowTypes(),
       listSystemRoles(),
       listWorkflowDefinitions()
     ]);

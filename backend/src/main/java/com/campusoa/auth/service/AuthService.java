@@ -19,7 +19,7 @@ import java.util.concurrent.ConcurrentHashMap;
 public class AuthService {
 
     private final JdbcTemplate jdbcTemplate;
-    private final Map<String, AuthenticatedUser> tokens = new ConcurrentHashMap<>();
+    private final Map<String, Long> tokens = new ConcurrentHashMap<>();
 
     public AuthService(JdbcTemplate jdbcTemplate) {
         this.jdbcTemplate = jdbcTemplate;
@@ -36,7 +36,7 @@ public class AuthService {
 
         AuthenticatedUser authenticatedUser = toAuthenticatedUser(user, findRolesByUserId(user.userId()));
         String token = UUID.randomUUID().toString().replace("-", "");
-        tokens.put(token, authenticatedUser);
+        tokens.put(token, authenticatedUser.userId());
 
         return new LoginResponse(
                 token,
@@ -87,7 +87,18 @@ public class AuthService {
     }
 
     public AuthenticatedUser findByToken(String token) {
-        return tokens.get(token);
+        if (token == null || token.isBlank()) {
+            return null;
+        }
+        Long userId = tokens.get(token);
+        if (userId == null) {
+            return null;
+        }
+        AuthenticatedUser currentUser = findActiveAuthenticatedUser(userId);
+        if (currentUser == null) {
+            tokens.remove(token);
+        }
+        return currentUser;
     }
 
     public void logout(String token) {
@@ -98,21 +109,60 @@ public class AuthService {
     }
 
     public UserProfile profile(AuthenticatedUser user) {
-        DbUser current = findUserById(user.userId());
-        if (current == null) {
-            throw new AuthException("当前用户不存在");
-        }
-        return toUserProfile(toAuthenticatedUser(current, findRolesByUserId(user.userId())));
+        return toUserProfile(requireActiveAuthenticatedUser(user));
+    }
+
+    public Map<String, Object> profilePayload(AuthenticatedUser user) {
+        AuthenticatedUser currentUser = requireActiveAuthenticatedUser(user);
+        return Map.of(
+                "profile", toUserProfile(currentUser),
+                "menus", menusForAuthenticatedUser(currentUser),
+                "permissions", permissionsForAuthenticatedUser(currentUser)
+        );
     }
 
     public List<String> menusFor(AuthenticatedUser user) {
-        List<String> roles = findRolesByUserId(user.userId());
+        return menusForAuthenticatedUser(requireActiveAuthenticatedUser(user));
+    }
+
+    public List<String> permissionsFor(AuthenticatedUser user) {
+        return permissionsForAuthenticatedUser(requireActiveAuthenticatedUser(user));
+    }
+
+    private List<String> menusForAuthenticatedUser(AuthenticatedUser user) {
+        List<String> roles = user.roles();
+        if (isAdmin(user, roles)) {
+            return findAllTopLevelMenus();
+        }
         List<String> menus = findMenusByRoles(roles);
         return menus.isEmpty() ? buildMenus(roles) : menus;
     }
 
-    public List<String> permissionsFor(AuthenticatedUser user) {
-        return findPermissionsByRoles(findRolesByUserId(user.userId()));
+    private List<String> permissionsForAuthenticatedUser(AuthenticatedUser user) {
+        List<String> roles = user.roles();
+        if (isAdmin(user, roles)) {
+            return findAllPermissions();
+        }
+        return findPermissionsByRoles(roles);
+    }
+
+    private AuthenticatedUser requireActiveAuthenticatedUser(AuthenticatedUser user) {
+        if (user == null || user.userId() == null) {
+            throw new AuthException("当前用户不存在或已被禁用");
+        }
+        AuthenticatedUser currentUser = findActiveAuthenticatedUser(user.userId());
+        if (currentUser == null) {
+            throw new AuthException("当前用户不存在或已被禁用");
+        }
+        return currentUser;
+    }
+
+    private AuthenticatedUser findActiveAuthenticatedUser(Long userId) {
+        DbUser current = findUserById(userId);
+        if (current == null || current.status() == null || current.status() != 1) {
+            return null;
+        }
+        return toAuthenticatedUser(current, findRolesByUserId(userId));
     }
 
     private DbUser findUserByUsername(String username) {
@@ -159,6 +209,7 @@ public class AuthService {
                         FROM sys_role r
                         JOIN sys_user_role ur ON ur.role_id = r.id
                         WHERE ur.user_id = ?
+                          AND r.status = 1
                         ORDER BY r.id
                         """,
                 (rs, rowNum) -> rs.getString("role_code"),
@@ -198,6 +249,7 @@ public class AuthService {
                         JOIN sys_role r ON r.id = rm.role_id
                         WHERE m.status = 1
                           AND m.parent_id IS NULL
+                          AND r.status = 1
                           AND r.role_code IN (%s)
                         GROUP BY m.permission_code
                         ORDER BY MIN(m.sort_no) ASC, MIN(m.id) ASC
@@ -217,6 +269,7 @@ public class AuthService {
                         JOIN sys_role_permission rp ON rp.permission_id = p.id
                         JOIN sys_role r ON r.id = rp.role_id
                         WHERE p.status = 1
+                          AND r.status = 1
                           AND r.role_code IN (%s)
                         GROUP BY p.permission_code
                         ORDER BY MIN(p.id) ASC
@@ -224,6 +277,33 @@ public class AuthService {
                 (rs, rowNum) -> rs.getString("permission_code"),
                 roles.toArray()
         );
+    }
+
+    private List<String> findAllTopLevelMenus() {
+        return jdbcTemplate.query("""
+                        SELECT permission_code
+                        FROM sys_menu
+                        WHERE status = 1
+                          AND parent_id IS NULL
+                        ORDER BY sort_no ASC, id ASC
+                        """,
+                (rs, rowNum) -> rs.getString("permission_code")
+        );
+    }
+
+    private List<String> findAllPermissions() {
+        return jdbcTemplate.query("""
+                        SELECT permission_code
+                        FROM sys_permission
+                        WHERE status = 1
+                        ORDER BY id ASC
+                        """,
+                (rs, rowNum) -> rs.getString("permission_code")
+        );
+    }
+
+    private boolean isAdmin(AuthenticatedUser user, List<String> roles) {
+        return user != null && (roles.contains("ADMIN") || "ADMIN".equalsIgnoreCase(user.userType()));
     }
 
     private String placeholders(int size) {
@@ -258,7 +338,7 @@ public class AuthService {
             return List.of("dashboard", "workflow", "student-affairs", "logistics");
         }
         if (roles.contains("TEACHER")) {
-            return List.of("dashboard", "workflow", "academic", "research", "logistics");
+            return List.of("dashboard", "workflow", "student-affairs", "academic", "research", "logistics");
         }
         if (roles.contains("RESEARCH")) {
             return List.of("dashboard", "workflow", "research", "logistics");
@@ -268,6 +348,9 @@ public class AuthService {
         }
         if (roles.contains("REVIEWER")) {
             return List.of("dashboard", "workflow", "research");
+        }
+        if (roles.contains("STUDENT_AFFAIRS")) {
+            return List.of("dashboard", "workflow", "student-affairs", "logistics");
         }
         return new ArrayList<>(List.of("dashboard", "workflow"));
     }
